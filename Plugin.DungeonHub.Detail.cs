@@ -189,8 +189,8 @@ public sealed partial class Plugin
                     DhFsBody, w, TextAlign.Center)),
             }, Gap: 0.01f, Justify: RowJustify.Center), OnClick: () => DhSelectLevel(idx)) { Bare = true, OnHover = o => hover.On = o })
             {
-                FillColorFn = () => DhChipOn(idx) ? fill() : Fade(fill()),   // selected = state, solid; others = surface
-                OutlineColorFn = () => DhChipOn(idx) ? DhKindColor(idx) with { A = 0.6f } : null,
+                FillColorFn = () => Fade(fill()),
+                OutlineColorFn = () => FadeRing(DhChipOn(idx) ? DhKindColor(idx) with { A = 0.6f } : null),
                 CornerRadius = DhChipH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
             }, Width: w);
     }
@@ -227,13 +227,12 @@ public sealed partial class Plugin
             new BubbleElement(new SelectableElement(DhGoContent(which, onText, w), OnClick: onClick)
                 { Bare = true, OnHover = o => hover.On = o })
             {
-                FillColorFn = () => hover.On ? Over(Menu.MenuText with { A = 0.10f }, onFill()) : onFill(),
+                FillColorFn = () => Fade(hover.On ? Over(Menu.MenuText with { A = 0.10f }, onFill()) : onFill()),
                 CornerRadius = DhBtnRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
             },
             new BubbleElement(DhGoContent(which, offText, w))
             {
-                // Active (accent wash) = a state, solid; the grey unavailable look = surface.
-                FillColorFn = () => DhBtnState(which).Active ? offFill() : Fade(offFill()),
+                FillColorFn = () => Fade(offFill()),
                 CornerRadius = DhBtnRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
             }), Width: w);
     }

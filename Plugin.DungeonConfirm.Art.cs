@@ -91,7 +91,7 @@ public sealed partial class Plugin
             new SpacerElement(side, DcClassW),
         }, Gap: 0.01f, Justify: RowJustify.Center))
         {
-            FillColorFn = () => DcRoleColor(m()?.Prof ?? 0), CornerRadius = DcBadgeRadius, PaddingX = 0f, PaddingY = 0f,
+            FillColorFn = () => Fade(DcRoleColor(m()?.Prof ?? 0)), CornerRadius = DcBadgeRadius, PaddingX = 0f, PaddingY = 0f,
             MaxWidth = DcClassW,
         }, Width: DcClassW);
     }
@@ -124,7 +124,7 @@ public sealed partial class Plugin
                     new SpacerElement(side, DcIconBox),
                 }, Gap: 0.01f, Justify: RowJustify.Center)))
             {
-                FillColorFn = () => _dcEnd != DcEnd.None ? DangerFill : Menu.MenuAccent,
+                FillColorFn = () => Fade(_dcEnd != DcEnd.None ? DangerFill : Menu.MenuAccent),
                 CornerRadius = DcIconRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcIconBox,
             }, Width: DcIconBox);
     }
@@ -165,7 +165,7 @@ public sealed partial class Plugin
                                  DcBold(label, () => EnsureContrast(color(), fill(), 4.5f), DcFsSmall), new SpacerElement(DcS(9f), 0f) };
         return new BubbleElement(new RowElement(parts, Gap: 0.01f))
         {
-            FillColorFn = () => fill(), CornerRadius = DcChipH / 2f - 1f, PaddingX = 0f, PaddingY = 0f,
+            FillColorFn = () => Fade(fill()), CornerRadius = DcChipH / 2f - 1f, PaddingX = 0f, PaddingY = 0f,
         };
     }
 
@@ -255,7 +255,7 @@ public sealed partial class Plugin
         new SpacerElement(DcPillPadX, DcPillH),
     }, Gap: 0.01f, Justify: RowJustify.Center))
     {
-        FillColorFn = () => DcConfirmedFill, CornerRadius = DcPillH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcPillW,
+        FillColorFn = () => Fade(DcConfirmedFill), CornerRadius = DcPillH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcPillW,
     };
 
     private static void DcStarPt(int i, out float x, out float y)

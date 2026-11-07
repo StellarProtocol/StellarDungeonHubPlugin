@@ -28,24 +28,31 @@ public sealed partial class Plugin
     private ColorRgba MutedColor()   => Menu.MenuMuted;
     private ColorRgba PanelColor()   => Over(PanelShade, Menu.MenuBackground);
 
-    // ── window opacity: large inner surfaces follow Themes → Window Opacity ───────────────────────────────────────
+    // ── window opacity: EVERY coloured fill follows the window opacity, uniformly ──────────────────────────────────
     // The framework fades ONLY the GlassMenu frame Image (IChromeStyle.WindowOpacity, WindowBuilder-Patterns.md
-    // §"WindowSpec.FrameOpacity"); our panels / tiles / tab track / bottom bar are opaque pre-blended fills, so at a
-    // low opacity they stayed solid on a see-through frame. Fade(c) multiplies the alpha of such a SURFACE fill by the
-    // live value. The colour is still composed OPAQUE first (Over(…, MenuBackground / PanelColor())) and only then gets
-    // its alpha — never composite over a transparent background. NOT faded (full alpha on purpose): text, images / art,
-    // the accent icon tile, coloured action pills (Solo / Party / Match / Accept / Confirm / Cancel), selected-tab and
-    // selected-row highlights and state chips.
-    // IChromeStyle isn't on IPluginServices; the shared INamedTheme instance is the framework theme service, which
-    // implements it too (ChatTools Plugin.WindowOpacity.cs). No cast → 1 (opaque, the old look). Polled per refresh: a
-    // cast + a property read. Clamped to the framework's own 0.3–1 range.
-    private float SurfaceAlpha()
+    // §"WindowSpec.FrameOpacity"); our fills are opaque pre-blended colours, so at a low opacity they stayed solid on a
+    // see-through frame. 4f0f9aa faded only the large surfaces, and the solid pills / chips / highlights left on a faded
+    // window read as "the buttons didn't fade" (user, 2026-11-07). So now EVERY bubble fill and ring — panels, tiles,
+    // the tab track, the bottom bar, action pills (Solo / Match / Party / Enter / Accept / Confirm / Cancel), selected
+    // tab / row highlights, status / affix / difficulty chips, the accent icon tiles, the Master grid, the countdown bar
+    // fill and hover washes — goes through Fade by the SAME factor as the frame. Only text and pictures (ImageElement /
+    // GameTextureElement art, thumbnails, glyph PNGs) stay solid: they can't take an alpha here anyway.
+    // Each colour is still composed OPAQUE first (Over(…, MenuBackground / PanelColor())) and only then gets its alpha —
+    // never composite over a transparent background. Fade(Transparent) stays transparent.
+    private float SurfaceAlpha() => WindowOpacity();
+
+    // The effective window opacity, 0.3–1 (the framework's own clamp range). IChromeStyle isn't on IPluginServices; the
+    // shared INamedTheme instance is the framework theme service, which implements it too (ChatTools
+    // Plugin.WindowOpacity.cs). No cast → 1 (opaque, the old look). Polled per refresh: a cast + a property read.
+    private float WindowOpacity()
     {
         try { return Math.Clamp((_services.NamedTheme as IChromeStyle)?.WindowOpacity ?? 1f, 0.3f, 1f); }
         catch { return 1f; }
     }
 
     private ColorRgba Fade(ColorRgba c) => c with { A = c.A * SurfaceAlpha() };
+    // OutlineColorFn rings: null = no ring (stays null), a colour fades like a fill.
+    private ColorRgba? FadeRing(ColorRgba? c) => c is { } v ? Fade(v) : null;
 
     // Nudges fg toward white (dark bg) or black (light bg) in 15% steps until it reaches minRatio against the opaque bg
     // (ChatTools Plugin.Tabs.cs). Pure struct math — no allocation on the per-refresh colour funcs.

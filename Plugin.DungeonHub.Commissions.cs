@@ -193,7 +193,7 @@ public sealed partial class Plugin
             DhCmStatus(DhDetInW)));
 
     private HudElement DhCmBoardPill() =>
-        DhPill(() => "Go to the board", () => DcNeutral(), () => EnsureContrast(TextColor(), DcNeutral(), 4.5f), DhOnCmBoard, DhCmBoardW, DhCmPillH, surface: true);
+        DhPill(() => "Go to the board", () => DcNeutral(), () => EnsureContrast(TextColor(), DcNeutral(), 4.5f), DhOnCmBoard, DhCmBoardW, DhCmPillH);
 
     private HudElement DhCmStatus(float w) => new CellElement(new RowElement(new HudElement[]
     {

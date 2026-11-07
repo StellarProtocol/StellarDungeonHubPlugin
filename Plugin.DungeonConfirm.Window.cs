@@ -210,20 +210,16 @@ public sealed partial class Plugin
     // pill's right edge, 2026-11-06; BubbleBinding.Apply, WindowBuilder.Bindings.Misc.cs).
 
     // hoverFill: an explicit hover colour (the green Confirm); null = the usual 10 % text-colour wash over the fill.
-    // surface: a neutral pill — its fill (and hover) follows the window opacity (Style.cs Fade); action pills stay solid.
+    // Every pill (and its hover) follows the window opacity (Style.cs Fade), action pills included.
     private HudElement DcPill(Func<string> label, Func<ColorRgba> fill, Func<ColorRgba> text, Action onClick,
-                              Func<ColorRgba>? hoverFill = null, bool surface = false)
+                              Func<ColorRgba>? hoverFill = null)
     {
         var hover = new DcHover();
         return new BubbleElement(new SelectableElement(
             DcPillRow(DcPillLabel(label, text)), OnClick: onClick)
             { Bare = true, OnHover = over => hover.On = over })
         {
-            FillColorFn = () =>
-            {
-                var c = !hover.On ? fill() : hoverFill?.Invoke() ?? Over(Menu.MenuText with { A = 0.10f }, fill());
-                return surface ? Fade(c) : c;
-            },
+            FillColorFn = () => Fade(!hover.On ? fill() : hoverFill?.Invoke() ?? Over(Menu.MenuText with { A = 0.10f }, fill())),
             CornerRadius = DcPillH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcPillW,
         };
     }
@@ -242,7 +238,7 @@ public sealed partial class Plugin
     private static readonly ColorRgba DcConfirmHoverFill = Rgb(0x2bb868);
     private HudElement DcPrimary(Func<string> l, Action a) =>
         DcPill(l, () => DcConfirmedFill, DcConfirmedText, a, () => DcConfirmHoverFill);
-    private HudElement DcNeutralPill(Func<string> l, Action a) => DcPill(l, DcNeutral, () => EnsureContrast(TextColor(), DcNeutral(), 4.5f), a, surface: true);
+    private HudElement DcNeutralPill(Func<string> l, Action a) => DcPill(l, DcNeutral, () => EnsureContrast(TextColor(), DcNeutral(), 4.5f), a);
     private HudElement DcDanger(Func<string> l, Action a) => DcPill(l, () => DangerFill, () => DcOn(White, Over(DangerFill, PanelColor())), a);
 
     // ── panel: rounded Panel fill, caption + right-aligned hint on a 28 px strut, then children ──────────────────
@@ -312,7 +308,7 @@ public sealed partial class Plugin
                 { Bold = true, Ellipsize = true }),
         }, Gap: 0.01f, Justify: RowJustify.Center))
         {
-            FillColorFn = () => DcDiffFill(), CornerRadius = DcStatusH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcDiffW,
+            FillColorFn = () => Fade(DcDiffFill()), CornerRadius = DcStatusH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcDiffW,
         }, Width: DcDiffW);
 
     private ColorRgba DcDiffText() => (_dc?.DiffKind ?? 0) switch
@@ -342,7 +338,8 @@ public sealed partial class Plugin
 
     private HudElement DcBar() => new BarElement(() => DcBarFraction(), Menu.MenuAccent)
     {
-        Height = DcBarH, FillWidth = true, FillColorFn = () => DcLow ? DcAmber : Menu.MenuAccent,
+        // The fill fades like every other fill; the track is the framework's fixed black@0.38 tint (not themable).
+        Height = DcBarH, FillWidth = true, FillColorFn = () => Fade(DcLow ? DcAmber : Menu.MenuAccent),
     };
 
     private float DcBarFraction() =>
@@ -431,7 +428,7 @@ public sealed partial class Plugin
         }, Gap: 0.01f))
         {
             FillColorFn = () => Fade(DcTile()), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = Dc5RowW,
-            OutlineColorFn = () => DcMem(i) is { Me: true } ? Menu.MenuAccent with { A = 0.6f } : null,
+            OutlineColorFn = () => FadeRing(DcMem(i) is { Me: true } ? Menu.MenuAccent with { A = 0.6f } : null),
         },
         DcEmptyRow(Dc5RowW));
 

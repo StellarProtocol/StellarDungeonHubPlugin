@@ -18,7 +18,7 @@ public sealed partial class Plugin
             DcDrop(DcBold(() => DcStatusLabel(m()), () => DcPillText(m()), DcFsSmall, DcStatusW, TextAlign.Center)),
         }, Gap: 0.01f, Justify: RowJustify.Center))
         {
-            FillColorFn = () => DcPillFill(m()), CornerRadius = DcStatusH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcStatusW,
+            FillColorFn = () => Fade(DcPillFill(m())), CornerRadius = DcStatusH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcStatusW,
         }, Width: DcStatusW);
 
     // Leader shows "Leader" only in team mode (match has no leader); a leader who declined can't happen (they cancel).

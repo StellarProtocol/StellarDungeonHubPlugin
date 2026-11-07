@@ -84,7 +84,7 @@ public sealed partial class Plugin
         }, Gap: 0.01f))
         {
             FillColorFn = () => Fade(DcTile()), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcRaidColW,
-            OutlineColorFn = () => DcCell(cell) is { Me: true } ? Menu.MenuAccent with { A = 0.6f } : null,
+            OutlineColorFn = () => FadeRing(DcCell(cell) is { Me: true } ? Menu.MenuAccent with { A = 0.6f } : null),
         },
         DcEmptyRow(DcRaidColW));
 
@@ -108,7 +108,7 @@ public sealed partial class Plugin
                     DcDrop(DcBold(() => DcState(m()) == 2 ? "…" : "", () => DcPillText(m()), DcFsMark, DcStatusH, TextAlign.Center)),
                 }, Gap: 0.01f, Justify: RowJustify.Center)))))
             {
-                FillColorFn = () => DcPillFill(m()), CornerRadius = DcStatusH / 2f - 1f, PaddingX = 0f, PaddingY = 0f,
+                FillColorFn = () => Fade(DcPillFill(m())), CornerRadius = DcStatusH / 2f - 1f, PaddingX = 0f, PaddingY = 0f,
                 MaxWidth = DcStatusH,
             }, Width: DcStatusH);
     }

@@ -42,7 +42,7 @@ public sealed partial class Plugin
                 new SpacerElement(side, DhCloseW),
             }, Gap: 0.01f, Justify: RowJustify.Center), OnClick: DhOpenSettings) { Bare = true, OnHover = o => hover.On = o })
             {
-                FillColorFn = () => hover.On ? Over(Menu.MenuAccent with { A = 0.22f }, Menu.MenuBackground) : Transparent,
+                FillColorFn = () => Fade(hover.On ? Over(Menu.MenuAccent with { A = 0.22f }, Menu.MenuBackground) : Transparent),
                 CornerRadius = DhCloseW / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DhCloseW,
             }, Width: DhCloseW);
     }

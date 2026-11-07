@@ -81,21 +81,21 @@ public sealed partial class Plugin
                 {
                     new CellElement(new BubbleElement(new SpacerElement(barW, DhLvBarH))
                     {
-                        FillColorFn = () => DhLvSoloMatch(diff) ? Menu.MenuAccent : Transparent,
+                        FillColorFn = () => Fade(DhLvSoloMatch(diff) ? Menu.MenuAccent : Transparent),
                         CornerRadius = 2f, PaddingX = 0f, PaddingY = 0f, MaxWidth = barW,
                     }, Width: barW),
                 }, Gap: 0.01f, Justify: RowJustify.Center),
             }, Gap: 0.01f))
             {
-                FillColorFn = () => DhLvSel(diff) ? DcWash(DhPurple, 0.3f) : Transparent,
+                FillColorFn = () => Fade(DhLvSel(diff) ? DcWash(DhPurple, 0.3f) : Transparent),
                 CornerRadius = DhLvRadius - DhLvRing, PaddingX = 0f, PaddingY = 0f, MaxWidth = innerW,
             }, Width: innerW);
         return new CellElement(new BubbleElement(new SelectableElement(
                 new RowElement(new HudElement[] { inner }, Gap: 0.01f, Justify: RowJustify.Center),
                 OnClick: () => DhSelectMaster(diff)) { Bare = true, OnHover = o => hover.On = o })
             {
-                FillColorFn = () => DhLvSel(diff) ? DhPurple
-                    : hover.On && DhLvClickable(diff) ? Over(Menu.MenuText with { A = 0.08f }, DhLvFill(diff)) : DhLvFill(diff),
+                FillColorFn = () => Fade(DhLvSel(diff) ? DhPurple
+                    : hover.On && DhLvClickable(diff) ? Over(Menu.MenuText with { A = 0.08f }, DhLvFill(diff)) : DhLvFill(diff)),
                 CornerRadius = DhLvRadius, PaddingX = DhLvRing, PaddingY = DhLvRing, MaxWidth = DhLvW,
             }, Width: DhLvW);
     }
@@ -117,9 +117,9 @@ public sealed partial class Plugin
         }, Gap: 0.01f);
     }
 
-    private static HudElement DhSwatch(Func<ColorRgba> fill, float w, float h) => new CellElement(
+    private HudElement DhSwatch(Func<ColorRgba> fill, float w, float h) => new CellElement(
         new BubbleElement(new SpacerElement(w, h))
         {
-            FillColorFn = () => fill(), CornerRadius = MathF.Min(DcS(3f), h / 2f), PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
+            FillColorFn = () => Fade(fill()), CornerRadius = MathF.Min(DcS(3f), h / 2f), PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
         }, Width: w);
 }
