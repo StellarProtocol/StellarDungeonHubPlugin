@@ -28,6 +28,25 @@ public sealed partial class Plugin
     private ColorRgba MutedColor()   => Menu.MenuMuted;
     private ColorRgba PanelColor()   => Over(PanelShade, Menu.MenuBackground);
 
+    // ── window opacity: large inner surfaces follow Themes → Window Opacity ───────────────────────────────────────
+    // The framework fades ONLY the GlassMenu frame Image (IChromeStyle.WindowOpacity, WindowBuilder-Patterns.md
+    // §"WindowSpec.FrameOpacity"); our panels / tiles / tab track / bottom bar are opaque pre-blended fills, so at a
+    // low opacity they stayed solid on a see-through frame. Fade(c) multiplies the alpha of such a SURFACE fill by the
+    // live value. The colour is still composed OPAQUE first (Over(…, MenuBackground / PanelColor())) and only then gets
+    // its alpha — never composite over a transparent background. NOT faded (full alpha on purpose): text, images / art,
+    // the accent icon tile, coloured action pills (Solo / Party / Match / Accept / Confirm / Cancel), selected-tab and
+    // selected-row highlights and state chips.
+    // IChromeStyle isn't on IPluginServices; the shared INamedTheme instance is the framework theme service, which
+    // implements it too (ChatTools Plugin.WindowOpacity.cs). No cast → 1 (opaque, the old look). Polled per refresh: a
+    // cast + a property read. Clamped to the framework's own 0.3–1 range.
+    private float SurfaceAlpha()
+    {
+        try { return Math.Clamp((_services.NamedTheme as IChromeStyle)?.WindowOpacity ?? 1f, 0.3f, 1f); }
+        catch { return 1f; }
+    }
+
+    private ColorRgba Fade(ColorRgba c) => c with { A = c.A * SurfaceAlpha() };
+
     // Nudges fg toward white (dark bg) or black (light bg) in 15% steps until it reaches minRatio against the opaque bg
     // (ChatTools Plugin.Tabs.cs). Pure struct math — no allocation on the per-refresh colour funcs.
     private static ColorRgba EnsureContrast(ColorRgba fg, ColorRgba bg, float minRatio)

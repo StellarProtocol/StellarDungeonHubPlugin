@@ -180,13 +180,13 @@ public sealed partial class Plugin
                         DhFsSmall, DhTabW, TextAlign.Center)),
                 }, Gap: 0.01f, Justify: RowJustify.Center), OnClick: () => DhSelectTab(k)) { Bare = true, OnHover = o => hover.On = o })
                 {
-                    FillColorFn = () => _dhTab == k ? DhTabOnFill() : hover.On ? Over(Menu.MenuText with { A = 0.06f }, PanelColor()) : Transparent,
+                    FillColorFn = () => _dhTab == k ? DhTabOnFill() : hover.On ? Fade(Over(Menu.MenuText with { A = 0.06f }, PanelColor())) : Transparent,
                     CornerRadius = DhTabH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DhTabW,
                 }, Width: DhTabW);
         }
         return new BubbleElement(new RowElement(tabs, Gap: DhTabGap))
         {
-            FillColorFn = () => PanelColor(), CornerRadius = DhTabH / 2f + DhTabPadY - 1f, PaddingX = DhTabPadX, PaddingY = DhTabPadY,
+            FillColorFn = () => Fade(PanelColor()), CornerRadius = DhTabH / 2f + DhTabPadY - 1f, PaddingX = DhTabPadX, PaddingY = DhTabPadY,
         };
     }
 
@@ -200,7 +200,7 @@ public sealed partial class Plugin
         Array.Copy(children, 0, items, 1, children.Length);
         return new BubbleElement(new ColumnElement(items, Gap: DhPanGap))
         {
-            FillColorFn = () => PanelColor(), CornerRadius = DhRadius, PaddingX = DhPanPadX, PaddingY = DhPanPadY,
+            FillColorFn = () => Fade(PanelColor()), CornerRadius = DhRadius, PaddingX = DhPanPadX, PaddingY = DhPanPadY,
         };
     }
 
@@ -283,9 +283,9 @@ public sealed partial class Plugin
             new SpacerElement(DhRowGapX, 0f),
         }, Gap: 0.01f), OnClick: () => DhSelectEntry(i)) { Bare = true })
         {
-            FillColorFn = () => DhAt(i) is not { } e ? DcTile()
-                : e.Key == DhCur?.Key ? Over(Menu.MenuAccent with { A = 0.14f }, DcTile())
-                : e.Locked ? Mix(PanelColor(), DcTile(), 0.5f) : DcTile(),
+            FillColorFn = () => DhAt(i) is not { } e ? Fade(DcTile())
+                : e.Key == DhCur?.Key ? Over(Menu.MenuAccent with { A = 0.14f }, DcTile())   // selected: solid
+                : Fade(e.Locked ? Mix(PanelColor(), DcTile(), 0.5f) : DcTile()),
             OutlineColorFn = () => DhAt(i) is { } e && e.Key == DhCur?.Key ? Menu.MenuAccent : null,
             CornerRadius = DhRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DhRowW,
         };
@@ -309,7 +309,7 @@ public sealed partial class Plugin
         Array.Copy(parts, 0, items, 1, parts.Length);
         return new BubbleElement(new RowElement(items, Gap: DcSE(10f)))
         {
-            FillColorFn = () => PanelColor(), CornerRadius = DhRadius, PaddingX = DcSE(8f), PaddingY = 0f,
+            FillColorFn = () => Fade(PanelColor()), CornerRadius = DhRadius, PaddingX = DcSE(8f), PaddingY = 0f,
         };
     }
 
@@ -334,7 +334,9 @@ public sealed partial class Plugin
         DhPill(() => "Cancel", () => DangerFill, () => DcOn(White, Over(DangerFill, PanelColor())), DhOnCancel, DhCancelW, DhChipH));
 
     // A round pill of a fixed size: bold centred label, hover = 10 % text wash (R2: the hover follows the shape).
-    private HudElement DhPill(Func<string> label, Func<ColorRgba> fill, Func<ColorRgba> text, Action onClick, float w, float h)
+    // surface: a neutral pill — its fill follows the window opacity (Style.cs Fade); action pills (Cancel …) stay solid.
+    private HudElement DhPill(Func<string> label, Func<ColorRgba> fill, Func<ColorRgba> text, Action onClick, float w, float h,
+        bool surface = false)
     {
         var hover = new DcHover();
         return new CellElement(new BubbleElement(new SelectableElement(new RowElement(new HudElement[]
@@ -342,7 +344,7 @@ public sealed partial class Plugin
                 new SpacerElement(0f, h), DcDrop(DcBold(label, text, DhFsSmall, w, TextAlign.Center)),
             }, Gap: 0.01f, Justify: RowJustify.Center), OnClick: onClick) { Bare = true, OnHover = o => hover.On = o })
             {
-                FillColorFn = () => hover.On ? Over(Menu.MenuText with { A = 0.10f }, fill()) : fill(),
+                FillColorFn = () => { var c = hover.On ? Over(Menu.MenuText with { A = 0.10f }, fill()) : fill(); return surface ? Fade(c) : c; },
                 CornerRadius = h / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
             }, Width: w);
     }

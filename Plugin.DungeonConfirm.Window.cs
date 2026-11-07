@@ -210,15 +210,20 @@ public sealed partial class Plugin
     // pill's right edge, 2026-11-06; BubbleBinding.Apply, WindowBuilder.Bindings.Misc.cs).
 
     // hoverFill: an explicit hover colour (the green Confirm); null = the usual 10 % text-colour wash over the fill.
+    // surface: a neutral pill — its fill (and hover) follows the window opacity (Style.cs Fade); action pills stay solid.
     private HudElement DcPill(Func<string> label, Func<ColorRgba> fill, Func<ColorRgba> text, Action onClick,
-                              Func<ColorRgba>? hoverFill = null)
+                              Func<ColorRgba>? hoverFill = null, bool surface = false)
     {
         var hover = new DcHover();
         return new BubbleElement(new SelectableElement(
             DcPillRow(DcPillLabel(label, text)), OnClick: onClick)
             { Bare = true, OnHover = over => hover.On = over })
         {
-            FillColorFn = () => !hover.On ? fill() : hoverFill?.Invoke() ?? Over(Menu.MenuText with { A = 0.10f }, fill()),
+            FillColorFn = () =>
+            {
+                var c = !hover.On ? fill() : hoverFill?.Invoke() ?? Over(Menu.MenuText with { A = 0.10f }, fill());
+                return surface ? Fade(c) : c;
+            },
             CornerRadius = DcPillH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcPillW,
         };
     }
@@ -227,7 +232,7 @@ public sealed partial class Plugin
     private HudElement DcPillOff(Func<string> label, Func<ColorRgba> fill) => new BubbleElement(
         DcPillRow(DcPillLabel(label, () => MutedColor())))
     {
-        FillColorFn = () => Mix(PanelColor(), fill(), 0.5f), CornerRadius = DcPillH / 2f - 1f, PaddingX = 0f, PaddingY = 0f,
+        FillColorFn = () => Fade(Mix(PanelColor(), fill(), 0.5f)), CornerRadius = DcPillH / 2f - 1f, PaddingX = 0f, PaddingY = 0f,
         MaxWidth = DcPillW,
     };
 
@@ -237,7 +242,7 @@ public sealed partial class Plugin
     private static readonly ColorRgba DcConfirmHoverFill = Rgb(0x2bb868);
     private HudElement DcPrimary(Func<string> l, Action a) =>
         DcPill(l, () => DcConfirmedFill, DcConfirmedText, a, () => DcConfirmHoverFill);
-    private HudElement DcNeutralPill(Func<string> l, Action a) => DcPill(l, DcNeutral, () => EnsureContrast(TextColor(), DcNeutral(), 4.5f), a);
+    private HudElement DcNeutralPill(Func<string> l, Action a) => DcPill(l, DcNeutral, () => EnsureContrast(TextColor(), DcNeutral(), 4.5f), a, surface: true);
     private HudElement DcDanger(Func<string> l, Action a) => DcPill(l, () => DangerFill, () => DcOn(White, Over(DangerFill, PanelColor())), a);
 
     // ── panel: rounded Panel fill, caption + right-aligned hint on a 28 px strut, then children ──────────────────
@@ -254,7 +259,7 @@ public sealed partial class Plugin
         Array.Copy(children, 0, items, 1, children.Length);
         return new BubbleElement(new ColumnElement(items, Gap: DcPanelGap))
         {
-            FillColorFn = () => PanelColor(), CornerRadius = DcRadius, PaddingX = DcPanelPadX, PaddingY = DcPanelPadY,
+            FillColorFn = () => Fade(PanelColor()), CornerRadius = DcRadius, PaddingX = DcPanelPadX, PaddingY = DcPanelPadY,
         };
     }
 
@@ -271,7 +276,7 @@ public sealed partial class Plugin
     private HudElement DcArtStrip(int width, int height) => new BubbleElement(
         new GameTextureElement(DcArtTex, width, height, () => _dcArtUv) { Fill = true, CornerRadius = (int)DcRadius })
     {
-        FillColorFn = () => DcTile(), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f,
+        FillColorFn = () => Fade(DcTile()), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f,
     };
 
     private HudElement DcHeader() => new RowElement(new HudElement[]
@@ -425,7 +430,7 @@ public sealed partial class Plugin
             new SpacerElement(DcSp6, 0f),
         }, Gap: 0.01f))
         {
-            FillColorFn = () => DcTile(), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = Dc5RowW,
+            FillColorFn = () => Fade(DcTile()), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = Dc5RowW,
             OutlineColorFn = () => DcMem(i) is { Me: true } ? Menu.MenuAccent with { A = 0.6f } : null,
         },
         DcEmptyRow(Dc5RowW));
@@ -438,7 +443,7 @@ public sealed partial class Plugin
         new CellElement(DcSmall(() => "Empty", () => MutedColor() with { A = 0.6f }, DcFsBody), Width: rowW - DcRowLead),
     }, Gap: 0.01f))
     {
-        FillColorFn = () => Mix(PanelColor(), DcTile(), 0.45f), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f,
+        FillColorFn = () => Fade(Mix(PanelColor(), DcTile(), 0.45f)), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f,
         MaxWidth = rowW,
     };
 

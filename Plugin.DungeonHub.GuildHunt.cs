@@ -180,7 +180,7 @@ public sealed partial class Plugin
             new SpacerElement(DcSE(8f), 0f),
         }, Gap: 0.01f))
         {
-            FillColorFn = () => DcTile(), CornerRadius = DhRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
+            FillColorFn = () => Fade(DcTile()), CornerRadius = DhRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
         }, Width: w);
     }
 
@@ -202,7 +202,7 @@ public sealed partial class Plugin
                     DhFsBody, w, TextAlign.Center)),
             }, Gap: 0.01f, Justify: RowJustify.Center), OnClick: () => { if (has()) _dhGhDiff = i; }) { Bare = true, OnHover = o => hover.On = o })
             {
-                FillColorFn = () => fill(),
+                FillColorFn = () => on() ? fill() : Fade(fill()),   // selected = state, solid; others = surface
                 OutlineColorFn = () => on() ? kind with { A = 0.6f } : null,
                 CornerRadius = DhChipH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
             }, Width: w);

@@ -193,7 +193,7 @@ public sealed partial class Plugin
             DhCmStatus(DhDetInW)));
 
     private HudElement DhCmBoardPill() =>
-        DhPill(() => "Go to the board", () => DcNeutral(), () => EnsureContrast(TextColor(), DcNeutral(), 4.5f), DhOnCmBoard, DhCmBoardW, DhCmPillH);
+        DhPill(() => "Go to the board", () => DcNeutral(), () => EnsureContrast(TextColor(), DcNeutral(), 4.5f), DhOnCmBoard, DhCmBoardW, DhCmPillH, surface: true);
 
     private HudElement DhCmStatus(float w) => new CellElement(new RowElement(new HudElement[]
     {
@@ -263,7 +263,7 @@ public sealed partial class Plugin
         parts.Add(new SpacerElement(DcSE(10f) - DcSE(6f), 0f));   // + the 10 px row gap = 16, both looks
         return new BubbleElement(new RowElement(parts.ToArray(), Gap: DcSE(6f)))
         {
-            FillColorFn = () => done ? Mix(PanelColor(), DcTile(), 0.55f) : DcTile(),
+            FillColorFn = () => Fade(done ? Mix(PanelColor(), DcTile(), 0.55f) : DcTile()),
             CornerRadius = DhRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DhCmRowW,
         };
     }
@@ -278,7 +278,7 @@ public sealed partial class Plugin
                     DcDrop(DcBold(label, () => Mix(PanelColor(), TextColor(), 0.4f), DhFsSmall, w, TextAlign.Center)),
                 }, Gap: 0.01f, Justify: RowJustify.Center))
                 {
-                    FillColorFn = () => Mix(PanelColor(), DcNeutral(), 0.55f), CornerRadius = DhCmPillH / 2f - 1f,
+                    FillColorFn = () => Fade(Mix(PanelColor(), DcNeutral(), 0.55f)), CornerRadius = DhCmPillH / 2f - 1f,
                     PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
                 }, Width: w)), Width: w);
 

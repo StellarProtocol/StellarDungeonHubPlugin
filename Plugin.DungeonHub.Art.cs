@@ -28,13 +28,13 @@ public sealed partial class Plugin
         new GameTextureElement(() => DhThumbTex(i), (int)DhThumbW, (int)DhThumbH, () => _dhThumbUv[i])
             { Fill = true, CornerRadius = (int)DcS(5f) })
     {
-        FillColorFn = () => DcTile(), CornerRadius = DcS(5f), PaddingX = 0f, PaddingY = 0f, MaxWidth = DhThumbW,
+        FillColorFn = () => Fade(DcTile()), CornerRadius = DcS(5f), PaddingX = 0f, PaddingY = 0f, MaxWidth = DhThumbW,
     }, Width: DhThumbW);
 
     private HudElement DhArtBand() => new BubbleElement(
         new GameTextureElement(DhBandTex, (int)DhDetInW, (int)DhArtH, () => _dhBandUv) { Fill = true, CornerRadius = (int)DhRadius })
     {
-        FillColorFn = () => DcTile(), CornerRadius = DhRadius, PaddingX = 0f, PaddingY = 0f,
+        FillColorFn = () => Fade(DcTile()), CornerRadius = DhRadius, PaddingX = 0f, PaddingY = 0f,
     };
 
     private object? DhThumbTex(int i)

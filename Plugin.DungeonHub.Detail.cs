@@ -130,7 +130,7 @@ public sealed partial class Plugin
 
     private HudElement DhPanelNoCaption(params HudElement[] children) => new BubbleElement(new ColumnElement(children, Gap: DhPanGap))
     {
-        FillColorFn = () => PanelColor(), CornerRadius = DhRadius, PaddingX = DhPanPadX, PaddingY = DhPanPadY,
+        FillColorFn = () => Fade(PanelColor()), CornerRadius = DhRadius, PaddingX = DhPanPadX, PaddingY = DhPanPadY,
     };
 
     private HudElement DhNameRow() => new RowElement(new HudElement[]
@@ -189,7 +189,7 @@ public sealed partial class Plugin
                     DhFsBody, w, TextAlign.Center)),
             }, Gap: 0.01f, Justify: RowJustify.Center), OnClick: () => DhSelectLevel(idx)) { Bare = true, OnHover = o => hover.On = o })
             {
-                FillColorFn = () => fill(),
+                FillColorFn = () => DhChipOn(idx) ? fill() : Fade(fill()),   // selected = state, solid; others = surface
                 OutlineColorFn = () => DhChipOn(idx) ? DhKindColor(idx) with { A = 0.6f } : null,
                 CornerRadius = DhChipH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
             }, Width: w);
@@ -208,7 +208,7 @@ public sealed partial class Plugin
             new SpacerElement(DcSE(8f), 0f),
         }, Gap: 0.01f))
         {
-            FillColorFn = () => DcTile(), CornerRadius = DhRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
+            FillColorFn = () => Fade(DcTile()), CornerRadius = DhRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
         }, Width: w);
 
     // ── the three "how to go" buttons ────────────────────────────────────────────────────────────────────────────
@@ -232,7 +232,9 @@ public sealed partial class Plugin
             },
             new BubbleElement(DhGoContent(which, offText, w))
             {
-                FillColorFn = () => offFill(), CornerRadius = DhBtnRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
+                // Active (accent wash) = a state, solid; the grey unavailable look = surface.
+                FillColorFn = () => DhBtnState(which).Active ? offFill() : Fade(offFill()),
+                CornerRadius = DhBtnRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
             }), Width: w);
     }
 
@@ -277,9 +279,9 @@ public sealed partial class Plugin
             new CellElement(new ConditionalElement(() => DhCur is { Locked: false },
                 new BubbleElement(new SelectableElement(DhStaticContent(() => "Open", () => "the game's page",
                         () => EnsureContrast(TextColor(), DcNeutral(), 4.5f), DhHalfW), OnClick: DhOnActivityOpen) { Bare = true })
-                    { FillColorFn = () => DcNeutral(), CornerRadius = DhBtnRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DhHalfW },
+                    { FillColorFn = () => Fade(DcNeutral()), CornerRadius = DhBtnRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DhHalfW },
                 new BubbleElement(DhStaticContent(() => "Open", () => "locked", () => Mix(PanelColor(), TextColor(), 0.4f), DhHalfW))
-                    { FillColorFn = () => Mix(PanelColor(), DcNeutral(), 0.55f), CornerRadius = DhBtnRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DhHalfW }),
+                    { FillColorFn = () => Fade(Mix(PanelColor(), DcNeutral(), 0.55f)), CornerRadius = DhBtnRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DhHalfW }),
                 Width: DhHalfW),
             // Match only where the game has an activity match (World Boss); otherwise the slot stays empty.
             new CellElement(new ConditionalElement(() => DhCur is { CanMatch: true }, DhGoButton(1, DhHalfW, DhOnMatch),

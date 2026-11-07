@@ -83,7 +83,7 @@ public sealed partial class Plugin
             new SpacerElement(DcSp4, 0f),
         }, Gap: 0.01f))
         {
-            FillColorFn = () => DcTile(), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcRaidColW,
+            FillColorFn = () => Fade(DcTile()), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcRaidColW,
             OutlineColorFn = () => DcCell(cell) is { Me: true } ? Menu.MenuAccent with { A = 0.6f } : null,
         },
         DcEmptyRow(DcRaidColW));
