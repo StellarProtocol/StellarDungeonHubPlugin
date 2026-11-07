@@ -30,10 +30,13 @@ public sealed partial class Plugin : IStellarPlugin
         InitDungeonHub();       // Dungeon Hub: every dungeon / raid / activity in one window (Plugin.DungeonHub*.cs)
         _services.ClientState.Logout += OnSettingsLogout;
 
-        // The one launcher tile — the Esc-menu gate icon, in-world only (the hub itself only renders in World).
+        // The one launcher tile — the gate icon in WHITE (the hub header's recolour, .DungeonHub.Icon.cs), in-world only
+        // (the hub itself only renders in World). The grey original looked dark / muddy next to the other launchers'
+        // white icons (user, 2026-11-07); the Esc-menu rail button keeps the grey one, which matches the game's rail.
+        // Baked once here (bytes, not a Func); a failed recolour falls back to the grey PNG.
         _launchers.Add(_services.Launcher.Register(new LauncherEntry(
             Title:   "Dungeon Hub",
-            IconPng: CachedPng("dungeons-esc-icon.png"),
+            IconPng: DhGateWhitePng() ?? CachedPng("dungeons-esc-icon.png"),
             IconKey: null,
             OnOpen:  DhOpen)
         { Group = LauncherGroup.Plugin,

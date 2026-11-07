@@ -5,8 +5,8 @@ using System.IO.Compression;
 namespace Stellar.DungeonHub;
 
 // The hub header's accent tile shows the Esc-menu gate icon (dungeons-esc-icon.png) in WHITE, like every house icon
-// tile (Stellar-Design-Language.md §4 "Icon tile": live accent fill + white flat glyph). The launcher tile and the Esc
-// rail button keep the original grey PNG.
+// tile (Stellar-Design-Language.md §4 "Icon tile": live accent fill + white flat glyph). The Stellar launcher tile
+// uses the same white bytes (Plugin.cs); only the Esc rail button keeps the original grey PNG.
 //
 // The PNG is grey stone (luminance ~144–191) with dark mortar / bar lines (~0–80). Making it white keeps the shape only
 // if the lines become GAPS, not white: alpha_out = alpha × ramp(luminance, DhIconLo..DhIconHi), RGB = white. So the
