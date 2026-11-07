@@ -8,10 +8,11 @@ namespace Stellar.DungeonHub;
 // vote AND match found) with a house-style window. User-approved design 2026-11-06 (prototype v3). Game facts:
 // Knowledge Base\Dungeon-Confirm-Replacement.md.
 //
-// Files: this one = config, settings window, hotkey, the 200 ms tick / state machine. .Lua = the OpenView/CloseView
+// Files: this one = config, hotkey, the 200 ms tick / state machine. .Lua = the OpenView/CloseView
 // wrappers, the poll chunk and the action calls. .Model = snapshot parse. .Window / .Raid = the two layouts. .Art = art,
-// icons and the generated glyph PNGs. .Preview = fake data for checking the look without a party. .Sound = our open
-// sound + countdown ticks (replacing the game's MatchAudio cue).
+// icons and the generated glyph PNGs. .Preview = fake data for checking the look without a party. .Sound / .SoundFiles =
+// our open sound + countdown ticks (replacing the game's MatchAudio cue) and the user's own sound files. .Settings = the
+// settings window.
 //
 // Flow: ON → the Lua wrapper stashes every OpenView('team_enter') instead of opening it. The tick polls the stash; a new
 // seq = a new request → once a valid snapshot parses, show our window (front + centred, .Centre). No valid snapshot within
@@ -46,7 +47,7 @@ public sealed partial class Plugin
     private void InitDungeonConfirm()
     {
         _dcReplace = _cfg.Get<bool>("dungeon_confirm_replace", false);
-        _dcSettingsWindow = RegisterWindow("dungeonhub.confirm.settings", "Dungeon Confirm", BuildDcSettingsRoot());
+        _dcSettingsWindow = DcRegisterSettings();   // house-style settings (.DungeonConfirm.Settings.cs)
         InitDcWindows();   // Plugin.DungeonConfirm.Window.cs
         InitDcSound();     // Plugin.DungeonConfirm.Sound.cs (open sound + countdown ticks)
 
@@ -239,7 +240,7 @@ public sealed partial class Plugin
     private void DcBeginEnd(DcEnd kind, string name)
     {
         _dcEnd = kind; _dcEndName = name; _dcEndCount = 0; _dcEndUntil = DcNow + DcHoldSec;
-        DcSoundStopTicks();
+        DcSoundStopAll();   // the request is over: the open sound (a long custom one too) ends here
     }
 
     private void DcTickEndState()
@@ -255,7 +256,7 @@ public sealed partial class Plugin
         if (_dcPreview) { DcClose(); return; }
         if (_dc == null || _dcEnd != DcEnd.None || _dcConfirmed) return;
         _dcConfirmed = true;
-        DcSoundStopTicks();
+        DcSoundStopAll();   // answered: the open sound stops with the ticks (.Sound.cs)
         if (_dc.Match) DcLuaMatchReady(_dcSeq, true); else DcLuaReply(_dcSeq, true);
     }
 
@@ -269,7 +270,7 @@ public sealed partial class Plugin
             if (_dcMatchDeclined) return;
             if (DcNow > _dcArmUntil) { _dcArmUntil = DcNow + DcArmSec; return; }
             _dcArmUntil = 0; _dcMatchDeclined = true;
-            DcSoundStopTicks();
+            DcSoundStopAll();
             DcLuaMatchReady(_dcSeq, false);
             return;
         }
@@ -284,28 +285,4 @@ public sealed partial class Plugin
         DcLuaLeaderCancel(_dcSeq);   // + CloseEnterView, like the native button
         DcClose();
     }
-
-    // ── settings window (opened from the hub header's gear, .DungeonHub.Settings.cs) ────────────────────────────
-    private HudElement BuildDcSettingsRoot() => new ColumnElement(new HudElement[]
-    {
-        new SeparatorElement(),
-        new TextElement(() => "Dungeon Confirm", Emphasis: true),
-        new RowElement(new HudElement[]
-        {
-            new ToggleElement(Label: () => "", Get: () => _dcReplace, Set: v => ApplyDcReplace(v)),
-            new TextElement(() => "Replace the game's dungeon confirm screen"),
-        }, Gap: 6f),
-        BuildDcSoundRows(),   // open sound / ticks / volume / Test (.Sound.cs)
-        new RowElement(new HudElement[]
-        {
-            new ButtonElement(Label: () => "Preview 5-player", OnClick: () => DcStartPreview(false), Width: 180f),
-            new ButtonElement(Label: () => "Preview raid",     OnClick: () => DcStartPreview(true),  Width: 180f),
-        }, Gap: 8f),
-        new TextElement(() => "Shows a small window instead of the game's full-screen entry check, for dungeons and " +
-            "raids, team entry and match found. Instead of the game's cue it plays its own sound when it opens and a " +
-            "tick each second for the last 10 s while you still have to answer; these play even with the game muted " +
-            "or in the background. Preview uses sample data, sends nothing and stays silent. Hotkey (unbound by " +
-            "default): \"Dungeon: Toggle Confirm Replacement\".",
-            Color: () => (ColorRgba?)_services.Theme.Colors.TextMuted),
-    }, Gap: 8f);
 }

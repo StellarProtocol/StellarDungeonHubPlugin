@@ -18,19 +18,23 @@ internal sealed class DecodedAudio
 // rate/channels. Used by Mechanic Callouts' local speaker playback (MechAudioPlayer). Runs on a background thread and
 // may allocate freely.
 //   .wav → hand-written RIFF parser (PCM 8/16/24/32-bit int, 32-bit float, WAVE_FORMAT_EXTENSIBLE of those).
-//   anything else → not supported here. (Experiment's copy falls back to Windows Media Foundation; Dungeon Hub only
-//   decodes its own embedded WAVs, so the MF half and its VoiceNative P/Invokes were left out.)
-internal static class AudioDecoder
+//   anything else (.mp3 — the user's own Dungeon Confirm sounds) → Windows Media Foundation
+//   (AudioDecoder.MediaFoundation.cs, ported from Experiment). MF must run on a thread we own: callers decode on their
+//   own background thread (Plugin.DungeonConfirm.SoundFiles.cs), never on the game's main thread.
+internal static partial class AudioDecoder
 {
-    // 16-bit samples are 2 bytes; 20 min of 48 kHz stereo ≈ 230 MB for source + clip. Longer is truncated.
-    private const int MaxSeconds = 20 * 60;
+    // 16-bit samples are 2 bytes; a sound longer than this is truncated. Confirm sounds are seconds long; the cap only
+    // stops someone's 1-hour mix from eating memory.
+    private const int MaxSeconds = 10 * 60;
 
     public static DecodedAudio Decode(string path)
     {
         if (!File.Exists(path)) throw new FileNotFoundException("file not found", path);
         var ext = Path.GetExtension(path).ToLowerInvariant();
-        if (ext != ".wav" && ext != ".wave") throw new InvalidDataException("only .wav is supported");
-        return DecodeWav(File.ReadAllBytes(path));
+        if (ext != ".wav" && ext != ".wave") return DecodeMediaFoundation(path);
+        // A WAV our parser rejects (ADPCM, A-law, …) may still have a Windows codec — fall back to MF.
+        try { return DecodeWav(File.ReadAllBytes(path)); }
+        catch (InvalidDataException) { return DecodeMediaFoundation(path); }
     }
 
     // ── WAV ──────────────────────────────────────────────────────────────────────────────────────────────────────

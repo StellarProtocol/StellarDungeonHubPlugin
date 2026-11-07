@@ -149,7 +149,8 @@ public sealed partial class Plugin
 
     // Icon-only ✕ (house §4): no fill at rest, red wash on hover. The ✕ is a generated PNG (a BOLD "✕" draws blank —
     // Stellar-Design-Language.md §6), re-baked when its colour changes (DcGlyphPng caches per colour).
-    private HudElement DhCloseButton()
+    // onClick: null = hide the hub; the settings window passes its own hide.
+    private HudElement DhCloseButton(Action? onClick = null)
     {
         var hover = new DcHover();
         float glyph = DcSE(12f), side = (DhCloseW - glyph) / 2f;
@@ -158,7 +159,7 @@ public sealed partial class Plugin
                 new SpacerElement(side, DhCloseW),
                 new ImageElement(() => DcGlyphPng(DcGlyph.Cross, glyph, hover.On ? DhRed : MutedColor()), (int)glyph, (int)glyph),
                 new SpacerElement(side, DhCloseW),
-            }, Gap: 0.01f, Justify: RowJustify.Center), OnClick: DhHide) { Bare = true, OnHover = o => hover.On = o })
+            }, Gap: 0.01f, Justify: RowJustify.Center), OnClick: onClick ?? DhHide) { Bare = true, OnHover = o => hover.On = o })
             {
                 FillColorFn = () => Fade(hover.On ? Over(Rgb(0xff4d4f, 0.22f), Menu.MenuBackground) : Transparent),
                 CornerRadius = DhCloseW / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DhCloseW,

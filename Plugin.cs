@@ -48,30 +48,6 @@ public sealed partial class Plugin : IStellarPlugin
     // Logout runs synchronously (Update is world-gated): the settings child closes with the hub (house §5).
     private void OnSettingsLogout() => DhHideSettings();
 
-    // Registers a hidden, draggable menu window (no launcher tile) — the Dungeon Confirm settings window.
-    // DefaultRect is a fixed literal (calibrated to the 2560×1440 reference canvas), NOT derived from ScreenWidth:
-    // "reset all HUD" restores it from a path where ScreenWidth reads 0 → a ScreenWidth-relative x lands off-screen
-    // (WindowBuilder-Patterns.md §"DefaultRect must be a CONSTANT"). Every open re-centres it on the hub anyway.
-    // In-world only and hidden during loading (house §5).
-    private IWindowControl RegisterWindow(string id, string title, HudElement root, float width = 440f)
-    {
-        IWindowControl w = null!;
-        w = _services.Windows.Register(new WindowRegistration(
-            Spec: new WindowSpec(
-                Id:          id,
-                Title:       title,
-                DefaultRect: new WindowRect(MathF.Min(2100f, 2540f - width), 20f, width, 0f),
-                Category:    WindowCategory.Tools,
-                Style:       WindowPanelStyle.GlassMenu)
-            { Draggable = true, Closable = true, StartVisible = false,
-              ShouldRender = () => _services.ClientState.Phase == GamePhase.World &&
-                                   (_services.ClientState.UiState & GameUIState.Loading) == 0 },
-            Root: root,
-            OnClose: () => w!.SetVisible(false)));
-        _windows.Add(w);
-        return w;
-    }
-
     public void Dispose()
     {
         _services.ClientState.Logout -= OnSettingsLogout;

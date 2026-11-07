@@ -19,6 +19,7 @@ public sealed partial class Plugin
     {
         // Lazy: CentreOf captures the hub control, which only exists after InitDungeonHub.
         _dcSettingsCentre ??= new WindowCenterer(_services.Framework, _dcSettingsWindow, WindowCenterer.CentreOf(_dhWin));
+        DcRefreshSoundList(force: true);   // the sound dropdowns re-list the folder on every open (.SoundFiles.cs)
         _dcSettingsCentre.OpenCentred();
     }
 

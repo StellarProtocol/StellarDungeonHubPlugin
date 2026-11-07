@@ -207,7 +207,8 @@ public sealed partial class Plugin
     // ONCE at build, so the colour is baked from the Func the builder pulls (style A ink / white at that moment);
     // cached per (shape, size, colour) so every row shares one byte[] (the builder dedups decodes by reference).
     // Gear: the hub header's settings button (icon-only, beside the ✕ — .DungeonHub.Window.cs DhSettingsButton).
-    private enum DcGlyph { Check, Cross, Gear }
+    // Play: the settings' ▶ preview buttons (.DungeonConfirm.Settings.cs) — "▶" isn't trusted in the TMP faces either.
+    private enum DcGlyph { Check, Cross, Gear, Play }
     private static readonly System.Collections.Generic.Dictionary<(DcGlyph, int, int), byte[]?> _dcGlyphs = new();
 
     private static byte[]? DcGlyphPng(DcGlyph g, float shown, ColorRgba c)
@@ -221,6 +222,7 @@ public sealed partial class Plugin
         {
             DcGlyph.Check => (x, y) => DcSeg(x, y, 4.5f, 12.5f, 9.5f, 17.5f, 2.3f) || DcSeg(x, y, 9.5f, 17.5f, 19.5f, 6.5f, 2.3f),
             DcGlyph.Gear  => DcGearInside,
+            DcGlyph.Play  => (x, y) => x >= 7.5f && x <= 19.5f && MathF.Abs(y - 12f) <= (19.5f - x) * 0.6f,
             _             => (x, y) => DcSeg(x, y, 6f, 6f, 18f, 18f, 2.3f) || DcSeg(x, y, 18f, 6f, 6f, 18f, 2.3f),
         };
         return _dcGlyphs[key] = DcRaster(2 * (int)shown, 24f, r, gr, b, inside);
