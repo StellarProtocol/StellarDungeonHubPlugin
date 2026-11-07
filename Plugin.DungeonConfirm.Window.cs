@@ -139,6 +139,7 @@ public sealed partial class Plugin
                 Category:    WindowCategory.Tools,
                 Style:       WindowPanelStyle.GlassMenu)
             { Draggable = true, Closable = false, StartVisible = false, ShowTitleBar = false, Anchor = WindowAnchor.Center,
+              FrameOpacity = DhFrameOpacity,   // settings' custom opacity, null = theme (.WindowOpacity.cs)
               ShouldRender = () => on() && _services.ClientState.Phase == GamePhase.World &&
                                    (_services.ClientState.UiState & GameUIState.Loading) == 0 },
             Root: root,

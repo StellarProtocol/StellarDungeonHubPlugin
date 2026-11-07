@@ -25,6 +25,7 @@ public sealed partial class Plugin : IStellarPlugin
     {
         _services = services;
         _cfg = _services.Config.GetSection("settings");
+        LoadWindowOpacity();    // before any window registers: their FrameOpacity / fills read it (Plugin.WindowOpacity.cs)
 
         InitDungeonConfirm();   // Dungeon Confirm: own window instead of the game's team_enter confirm (Plugin.DungeonConfirm*.cs)
         InitDungeonHub();       // Dungeon Hub: every dungeon / raid / activity in one window (Plugin.DungeonHub*.cs)
@@ -52,6 +53,7 @@ public sealed partial class Plugin : IStellarPlugin
     {
         _services.ClientState.Logout -= OnSettingsLogout;
         _dcSettingsCentre?.Stop();
+        FlushOpacity();
         DisposeDungeonConfirm();
         DisposeDungeonHub();
         foreach (var l in _launchers) l.Dispose();

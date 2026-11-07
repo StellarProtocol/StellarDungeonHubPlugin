@@ -27,6 +27,7 @@ public sealed partial class Plugin
     {
         _dcSettingsCentre?.Stop();
         _dcSettingsWindow.SetVisible(false);
+        FlushOpacity();   // a debounced opacity slider value is saved on close (.WindowOpacity.cs)
     }
 
     // Icon-only gear (house §4, same 28 px build as DhCloseButton): no fill at rest + muted glyph; hover = accent wash +

@@ -95,6 +95,7 @@ public sealed partial class Plugin
     // ── tick ──────────────────────────────────────────────────────────────────────────────────────────────────────
     private void DcTick()
     {
+        TickOpacitySave();            // debounced settings opacity slider (.WindowOpacity.cs) — runs in every state
         DcRecentreOnCanvasChange();   // resolution / UI-scale change only, never after a drag — .Centre.cs
         if (_dcPreview)
         {

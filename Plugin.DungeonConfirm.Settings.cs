@@ -11,6 +11,7 @@ namespace Stellar.DungeonHub;
 //   CONFIRM SCREEN  replace row + chip · [Preview 5-player] [Preview raid]
 //   SOUNDS          open-sound row + chip · Pill dropdown + ▶ · tick row + chip · dropdown + ▶ · Volume slider ·
 //                   [Open sounds folder] + note. A chosen file that can't be played → yellow note under its dropdown.
+//   WINDOW          custom window opacity row + chip · Opacity slider while on (.WindowOpacity.cs)
 // Toolkit notes: the framework Pill dropdown is drawn at its own fixed 28 px (it doesn't take our ×1.6 scale), and its
 // trigger corners are the shared small rounding until the SDK has DropdownElement.CornerRadius (fw ≥ 2.29.0).
 // Sub-lines wrap because they sit in FIXED-width cells (a weighted cell in a Row doesn't give wrapping text a width).
@@ -40,6 +41,7 @@ public sealed partial class Plugin
                 Category:    WindowCategory.Tools,
                 Style:       WindowPanelStyle.GlassMenu)
             { Draggable = true, Closable = false, StartVisible = false, ShowTitleBar = false,
+              FrameOpacity = DhFrameOpacity,   // settings' custom opacity, null = theme (.WindowOpacity.cs)
               ShouldRender = () => _services.ClientState.Phase == GamePhase.World &&
                                    (_services.ClientState.UiState & GameUIState.Loading) == 0 },
             Root: BuildDcSettingsRoot(),
@@ -73,6 +75,7 @@ public sealed partial class Plugin
                 DsNeutralPill("Open sounds folder", DcOpenSoundsFolder, DsFolderW),
                 new CellElement(DsWrapNote("Put your own .wav or .mp3 files here, then pick them above."), Width: DsFolderNoteW),
             }, Gap: DsGap)),
+        DsWindowPanel(),   // WINDOW: custom opacity (.WindowOpacity.cs)
     }, Gap: DhGap);
 
     // ── ToolHeader: accent tile + white gear · title over "Confirm screen On/Off" · icon-only ✕ ───────────────────

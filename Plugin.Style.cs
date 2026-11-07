@@ -41,11 +41,14 @@ public sealed partial class Plugin
     // never composite over a transparent background. Fade(Transparent) stays transparent.
     private float SurfaceAlpha() => WindowOpacity();
 
-    // The effective window opacity, 0.3–1 (the framework's own clamp range). IChromeStyle isn't on IPluginServices; the
-    // shared INamedTheme instance is the framework theme service, which implements it too (ChatTools
-    // Plugin.WindowOpacity.cs). No cast → 1 (opaque, the old look). Polled per refresh: a cast + a property read.
+    // The effective window opacity, 0.3–1 (the framework's own clamp range) = exactly what the frame uses: the settings'
+    // custom value when that override is on (Plugin.WindowOpacity.cs, the same value WindowSpec.FrameOpacity returns),
+    // else the theme's. IChromeStyle isn't on IPluginServices; the shared INamedTheme instance is the framework theme
+    // service, which implements it too (ChatTools Plugin.WindowOpacity.cs). No cast → 1 (opaque, the old look). Polled
+    // per refresh: a cast + a property read.
     private float WindowOpacity()
     {
+        if (DhFrameOpacity() is { } own) return Math.Clamp(own, 0.3f, 1f);
         try { return Math.Clamp((_services.NamedTheme as IChromeStyle)?.WindowOpacity ?? 1f, 0.3f, 1f); }
         catch { return 1f; }
     }
