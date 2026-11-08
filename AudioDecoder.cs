@@ -15,7 +15,7 @@ internal sealed class DecodedAudio
 }
 
 // Shared off-thread file decoder: reads an audio file into 16-bit interleaved PCM (DecodedAudio) at the file's own
-// rate/channels. Used by Mechanic Callouts' local speaker playback (MechAudioPlayer). Runs on a background thread and
+// rate/channels. Used by Dungeon Confirm's sounds (DcMixer.Convert takes it from there). Runs on a background thread and
 // may allocate freely.
 //   .wav → hand-written RIFF parser (PCM 8/16/24/32-bit int, 32-bit float, WAVE_FORMAT_EXTENSIBLE of those).
 //   anything else (.mp3 — the user's own Dungeon Confirm sounds) → Windows Media Foundation

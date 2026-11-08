@@ -10,7 +10,7 @@ namespace Stellar.DungeonHub;
 //
 // We ask the reader for PCM 16-bit only and leave rate/channels native, so it inserts just the decoder (no resampler
 // MFT). Ported from StellarExperimentPlugin (Voice Inject) for Dungeon Confirm's custom .mp3 sounds; the PCM goes
-// straight into MechAudioPlayer.BuildWav at the file's own rate, so nothing is resampled here.
+// to DcMixer.Convert at the file's own rate, which resamples it once (cached); nothing is resampled here.
 internal static unsafe partial class AudioDecoder
 {
     private const uint MfVersion              = 0x00020070; // MF_SDK_VERSION 2 << 16 | MF_API_VERSION 0x70

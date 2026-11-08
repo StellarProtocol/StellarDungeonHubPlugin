@@ -11,24 +11,25 @@ namespace Stellar.DungeonHub;
 // user's own .wav / .mp3 (.SoundFiles.cs). Previews sound exactly like a real request (open sound + the last-10 s
 // ticks, same toggles / files / volume). Replace OFF = silent everywhere: the sounds belong to the replacement window.
 //
-// Playback = a dedicated MechAudioPlayer (winmm PlaySound, in-memory WAV, own background thread — Mechanic-Callouts.md
-// "Local audio"). winmm ignores the game's mixer, so it is heard with the game muted or in the background; that's the
-// point, don't route it through Z.AudioMgr. MinGapMs = 0, and every play first STOPS the previous sound with the same
-// tag (DcStart): a long custom tick file never stacks under the next second's tick.
+// Playback = DcMixer (winmm waveOut + a small software mixer on its own thread). winmm ignores the game's mixer, so it is
+// heard with the game muted or in the background; that's the point, don't route it through Z.AudioMgr. One voice per
+// tag: a new play REPLACES that tag's voice (a long custom tick file never stacks under the next second's tick), while
+// the other tags keep playing — the open sound and the ticks MIX. (The first version used PlaySound, which has one
+// voice per process: a long custom open sound swallowed every tick.)
 //
 // The open sound plays until the window closes or I answer (Confirm / Decline / an end state) — a long custom file is
-// cut then (DcSoundStopAll). A tick that is due while the open sound still plays is SKIPPED, not delayed.
+// cut then (DcSoundStopAll). Ticks play on top of it.
 //
-// Volume: the decoded PCM is kept; the WAV image is rebuilt with the volume baked into the samples
-// (MechAudioPlayer.BuildWav) the first time a sound is needed after the volume / file changed — one image per slot
-// (open, tick), never per play. Volume 0 = nothing is played at all.
+// Volume: the decoded PCM is kept; the mixer clip is rebuilt with the volume baked in and converted to the mixer format
+// (DcMixer.Convert) the first time a sound is needed after the volume / file changed — one clip per slot (open, tick),
+// never per play. Volume 0 = nothing is played at all.
 //
-// Threads: DcWavFor(mayDecode: false) is the main-thread path — CACHE ONLY, it never decodes or builds an image (not even
+// Threads: DcWavFor(mayDecode: false) is the main-thread path — CACHE ONLY, it never decodes or builds a clip (not even
 // the embedded defaults). Anything missing goes to a short background thread (DcPlay), which only starts the sound if
 // no Stop for that tag happened meanwhile (per-tag generation counters). DcWarmAll pre-builds both slots off-thread at
-// startup and after every volume / file change, so a real play is always a cache hit. MechAudioPlayer.Stop/PlayWav only
-// touch its queue: winmm is called from its own thread alone (a main-thread PlaySound(NULL) blocked until the previous
-// tick finished — the 2026-11-08 growing tick hitch, see MechAudioPlayer). [DcPerf] logs the first 3 ticks' cost.
+// startup and after every volume / file change, so a real play is always a cache hit. DcMixer.Play/Stop only touch its
+// voice list: winmm is called from its own thread alone (a main-thread winmm call blocked until the previous tick
+// finished — the 2026-11-08 growing tick hitch). [DcPerf] logs the first 3 ticks' cost.
 //
 // Tick timing: a 50 ms Every (main thread, arithmetic only) takes s = ceil(remaining) — exactly the number the window's
 // timer shows (DcTimerText) — and ticks when s is 1..10 and lower than the last ticked second.
@@ -36,7 +37,7 @@ public sealed partial class Plugin
 {
     private const string DcTagEnter = "dc_enter", DcTagTick = "dc_tick", DcTagTest = "dc_test";
 
-    private MechAudioPlayer _dcAudio = null!;
+    private DcMixer _dcAudio = null!;
     private IDisposable? _dcSoundTimer;
     private bool _dcSoundOpen, _dcSoundTicks;
     private int  _dcSoundVolume;              // 0..100
@@ -51,9 +52,9 @@ public sealed partial class Plugin
     private int _dcPerfTicks;                                       // [DcPerf]: first 3 ticks of the session are logged
     private bool _dcPerfOpenLogged;                                 // [DcPerf]: first open sound of the session
 
-    private sealed class DcWavSlot { public DecodedAudio? Pcm; public int Vol = -1; public byte[]? Wav; }
+    private sealed class DcWavSlot { public DecodedAudio? Pcm; public int Vol = -1; public short[]? Wav; }
     private readonly DcWavSlot _dcSlotOpen = new(), _dcSlotTick = new();
-    private static readonly byte[] DcPending = Array.Empty<byte>();   // "needs a background build" sentinel
+    private static readonly short[] DcPending = new short[0];   // "needs a background build" sentinel (own instance: compared by reference)
 
     private void InitDcSound()
     {
@@ -62,8 +63,7 @@ public sealed partial class Plugin
         _dcSoundVolume = Math.Clamp(_cfg.Get<int>("dungeon_confirm_sound_volume", 80), 0, 100);
         _dcOpenFile    = _cfg.Get<string>("dungeon_confirm_sound_open_file", "") ?? "";
         _dcTickFile    = _cfg.Get<string>("dungeon_confirm_sound_tick_file", "") ?? "";
-        _dcAudio = new MechAudioPlayer(s => _services.Framework.Post(() => _services.Log.Info("[DungeonConfirm][Sound] " + s)))
-            { MinGapMs = 0, MaxPending = 4 };
+        _dcAudio = new DcMixer(s => _services.Framework.Post(() => _services.Log.Info("[DungeonConfirm][Sound] " + s)));
         _dcSoundTimer = _services.Framework.Every(TimeSpan.FromMilliseconds(50), DcSoundTick);
         DcRefreshSoundList(force: true);   // README + folder (.SoundFiles.cs)
         DcWarmAll();                       // decode + bake both slots now, so the first open / tick plays at once
@@ -109,7 +109,7 @@ public sealed partial class Plugin
         int s = (int)Math.Ceiling(DcRemaining);
         if (s < 1 || s > 10 || s >= _dcLastTick) return;
         _dcLastTick = s;                                       // this second is spent, played or skipped
-        if (!_dcSoundTicks || _dcAudio.IsBusyWith(DcTagEnter)) return;   // open sound still going → skip
+        if (!_dcSoundTicks) return;                            // mixes over a still-playing open sound
         long t0 = _dcPerfTicks < 3 ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
         DcPlay(true, DcTagTick);
         if (t0 != 0)
@@ -138,11 +138,8 @@ public sealed partial class Plugin
 
     private int DcGen(string tag) => tag == DcTagEnter ? _dcGenEnter : tag == DcTagTick ? _dcGenTick : _dcGenTest;
 
-    private void DcStart(string tag, byte[] wav)
-    {
-        _dcAudio.Stop(tag);   // the previous sound of this kind ends first — long files never stack
-        _dcAudio.PlayWav(wav, tag);
-    }
+    // Replaces the tag's previous voice (long files never stack); other tags keep playing.
+    private void DcStart(string tag, short[] clip) => _dcAudio.Play(tag, clip);
 
     // Decode + bake both slots (chosen file or default, current volume) in the background — startup, file pick, volume
     // change — so playback finds them cached. One worker at a time; a request while it runs makes it go round again
@@ -169,7 +166,7 @@ public sealed partial class Plugin
     // The WAV image for a slot at the current volume. null = nothing to play (volume 0 / defaults broken); DcPending =
     // mayDecode was false and a decode or a big image build is needed. A custom file that is missing or fails to decode
     // falls back to the slot's default sound.
-    private byte[]? DcWavFor(bool tick, bool mayDecode)
+    private short[]? DcWavFor(bool tick, bool mayDecode)
     {
         int vol = _dcSoundVolume;
         if (vol <= 0) return null;
@@ -191,7 +188,7 @@ public sealed partial class Plugin
         var slot = tick ? _dcSlotTick : _dcSlotOpen;
         lock (slot) if (slot.Pcm == pcm && slot.Vol == vol && slot.Wav != null) return slot.Wav;
         if (!mayDecode) return DcPending;                     // never bake on the main thread
-        var wav = MechAudioPlayer.BuildWav(pcm, vol / 100f);
+        var wav = DcMixer.Convert(pcm, vol / 100f);
         lock (slot) { slot.Pcm = pcm; slot.Vol = vol; slot.Wav = wav; }
         return wav;
     }
