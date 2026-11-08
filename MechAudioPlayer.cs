@@ -8,11 +8,16 @@ namespace Stellar.DungeonHub;
 
 /// <summary>
 /// Local-speaker sound player for mechanic alerts / voice callouts (NOT team voice).
-/// <para><b>API choice:</b> winmm <c>PlaySound(SND_MEMORY | SND_SYNC | SND_NODEFAULT)</c> on a dedicated background
-/// thread, fed an in-memory 16-bit PCM WAV. No Unity/IL2CPP objects (an <c>AudioClip</c>/<c>AudioSource</c> route
-/// would need interop arrays + a GameObject + main-thread calls), no COM, no device handles to leak; it plays through
-/// the default output in shared mode alongside the game, focus or not. SYNC on our own thread = the game thread never
-/// waits, and sounds naturally never overlap (one at a time).</para>
+/// <para><b>API choice:</b> winmm <c>PlaySound(SND_MEMORY | SND_ASYNC | SND_NODEFAULT)</c> issued ONLY from a dedicated
+/// background thread, fed an in-memory 16-bit PCM WAV (pinned while winmm reads it). No Unity/IL2CPP objects (an
+/// <c>AudioClip</c>/<c>AudioSource</c> route would need interop arrays + a GameObject + main-thread calls), no COM, no
+/// device handles to leak; it plays through the default output in shared mode alongside the game, focus or not. The
+/// thread then waits out the clip's length on a cancellable event, so sounds never overlap (one at a time).</para>
+/// <para>⚠️ <b>Never call PlaySound from the game thread — not even PlaySound(NULL) to stop.</b> The first version played
+/// SND_SYNC and cut from the caller's thread: PlaySound(NULL) from another thread BLOCKS until the sync sound ends
+/// (2026-11-08 [Hitch]: Dungeon Confirm's tick Stop+Play stalled the main thread 78 → 632 ms, growing each second
+/// because each ~1.06 s sync play overran its 1 s slot). Now <see cref="Stop"/> only flags + signals; the player
+/// thread does the PlaySound(NULL) itself, where ASYNC playback stops at once.</para>
 /// <para><b>Queue policy:</b> at most <see cref="MaxPending"/> waiting sounds; a new request beyond that DROPS THE
 /// OLDEST waiting one (a stale callout is useless), and plays start at least <see cref="MinGapMs"/> apart.</para>
 /// <para><b>Files:</b> decoded once with Voice Inject's <c>AudioDecoder</c> (WAV parser / Media Foundation — MF must
@@ -27,7 +32,9 @@ internal sealed class MechAudioPlayer : IDisposable
 {
     [DllImport("winmm.dll", SetLastError = true)]
     private static extern bool PlaySound(byte[]? pszSound, IntPtr hmod, uint fdwSound);
-    private const uint SndSync = 0x0, SndNoDefault = 0x2, SndMemory = 0x4;
+    [DllImport("winmm.dll", EntryPoint = "PlaySound", SetLastError = true)]
+    private static extern bool PlaySoundPtr(IntPtr pszSound, IntPtr hmod, uint fdwSound);
+    private const uint SndAsync = 0x1, SndNoDefault = 0x2, SndMemory = 0x4;
 
     public int MaxPending = 2;
     public int MinGapMs = 1000;
@@ -38,6 +45,9 @@ internal sealed class MechAudioPlayer : IDisposable
     private readonly LinkedList<Req> _queue = new();
     private readonly object _lock = new();
     private readonly AutoResetEvent _signal = new(false);
+    private readonly AutoResetEvent _cut = new(false);   // Stop()/Dispose → end the current clip now (player thread acts)
+    private GCHandle _pin;                                 // the WAV winmm is (or was last) reading; freed by the player thread
+    private long _pinEnd;                                  // TickCount64 its clip ended naturally (0 = still in use)
     private readonly Dictionary<string, Cached> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Thread _thread;
     private volatile bool _stop;
@@ -78,9 +88,10 @@ internal sealed class MechAudioPlayer : IDisposable
         {
             for (var n = _queue.First; n != null;) { var next = n.Next; if (tag == null || n.Value.Tag == tag) _queue.Remove(n); n = next; }
             cut = _current != null && (tag == null || _current.Tag == tag);
-            if (cut) _cutCurrent = true;   // covers the gap between dequeue and the PlaySound call
+            // _cutCurrent covers the gap between dequeue and the PlaySound call; _cut wakes the player thread out of the
+            // clip wait, and IT stops winmm. Nothing here touches winmm: this runs on the game's main thread.
+            if (cut && !_stop) { _cutCurrent = true; try { _cut.Set(); } catch (ObjectDisposedException) { } }
         }
-        if (cut) try { PlaySound(null, IntPtr.Zero, 0); } catch { }
     }
 
     public void Preload(string path) => Enqueue(new Req { Path = path, DecodeOnly = true }, front: true);
@@ -105,7 +116,7 @@ internal sealed class MechAudioPlayer : IDisposable
     public void Dispose()
     {
         _stop = true;
-        try { PlaySound(null, IntPtr.Zero, 0); } catch { }   // cut a sound in progress
+        try { _cut.Set(); } catch (ObjectDisposedException) { }   // the player thread cuts a sound in progress and frees its pin on the way out
         _signal.Set();
     }
 
@@ -114,8 +125,16 @@ internal sealed class MechAudioPlayer : IDisposable
         while (!_stop)
         {
             Req? r = null;
-            lock (_lock) { if (_queue.First != null) { r = _queue.First.Value; _queue.RemoveFirst(); _current = r; _cutCurrent = false; } }
-            if (r == null) { _signal.WaitOne(500); continue; }
+            lock (_lock)
+            {
+                if (_queue.First != null) { r = _queue.First.Value; _queue.RemoveFirst(); _current = r; _cutCurrent = false; _cut.Reset(); }
+            }
+            if (r == null)
+            {
+                _signal.WaitOne(500);
+                if (_pinEnd != 0 && Environment.TickCount64 - _pinEnd > 1000) Unpin();   // idle: winmm is long done with it
+                continue;
+            }
             try
             {
                 byte[]? wav = r.Wav;
@@ -130,12 +149,39 @@ internal sealed class MechAudioPlayer : IDisposable
                 if (_stop) break;
                 lock (_lock) if (_cutCurrent) continue;   // stopped while waiting
                 _lastStart = Environment.TickCount64;
-                PlaySound(wav, IntPtr.Zero, SndMemory | SndSync | SndNoDefault);
+                PlayAndWait(wav);
             }
             catch (Exception ex) { LastStatus = "playback error: " + ex.Message; _log(LastStatus); }
             finally { lock (_lock) _current = null; }
         }
-        try { _signal.Dispose(); } catch { }
+        try { PlaySound(null, IntPtr.Zero, 0); } catch { }
+        Unpin();
+        try { _signal.Dispose(); _cut.Dispose(); } catch { }
+    }
+
+    // Player thread only. Starts the clip ASYNC from a pinned copy-free handle (winmm reads the array after the call
+    // returns, so it must not move), then waits its length unless cut. A natural end keeps the pin a little longer
+    // (released by the next play or after 1 s idle) — winmm may still be finishing the device buffer.
+    private void PlayAndWait(byte[] wav)
+    {
+        var old = _pin;
+        _pin = GCHandle.Alloc(wav, GCHandleType.Pinned);
+        _pinEnd = 0;
+        bool ok = PlaySoundPtr(_pin.AddrOfPinnedObject(), IntPtr.Zero, SndMemory | SndAsync | SndNoDefault);
+        if (old.IsAllocated) old.Free();   // the new PlaySound replaced the old clip (one per process)
+        if (!ok) { Unpin(); return; }
+        if (_cut.WaitOne(ClipMs(wav) + 20)) { PlaySound(null, IntPtr.Zero, 0); Unpin(); }   // Stop / Dispose
+        else _pinEnd = Environment.TickCount64;
+    }
+
+    private void Unpin() { if (_pin.IsAllocated) _pin.Free(); _pinEnd = 0; }
+
+    // Length of a BuildWav-layout image (byte rate @28, data size @40).
+    private static int ClipMs(byte[] wav)
+    {
+        if (wav.Length < 44) return 0;
+        int byteRate = BitConverter.ToInt32(wav, 28), data = BitConverter.ToInt32(wav, 40);
+        return byteRate <= 0 ? 0 : (int)Math.Min(int.MaxValue, (long)Math.Min(data, wav.Length - 44) * 1000 / byteRate);
     }
 
     // Decode-once cache (by path; re-decoded when the file's size or write time changed). Runs on this thread.
