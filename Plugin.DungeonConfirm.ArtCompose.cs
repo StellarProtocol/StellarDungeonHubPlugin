@@ -149,9 +149,17 @@ public sealed partial class Plugin
 
     // Rows of the cut-out with any pixel at alpha > 1/8, as fractions from the top. Falls back to DcArtFocus (a point
     // band = the old fixed focus) if the readback fails or the image is empty.
+    // Cached per (texture, uv) for the session (2026-11-08 first-open freeze fix): the hub releases its composed RTs on
+    // every hide and recomposes on the next open, and the ReadPixels here is a CPU-GPU sync stall each time; the band
+    // of an unchanged image never changes. A failed readback is not cached (retried on the next compose).
+    private readonly System.Collections.Generic.Dictionary<(int, UvRect), (float Top, float Bot)> _dcBandCache = new();
+
     private void DcOpaqueBand(UE.Texture cut, UvRect uv, out float top, out float bot)
     {
         top = bot = DcArtFocus;
+        (int, UvRect) bandKey;
+        try { bandKey = (cut.GetInstanceID(), uv); } catch { return; }
+        if (_dcBandCache.TryGetValue(bandKey, out var hit)) { top = hit.Top; bot = hit.Bot; return; }
         int w = 64, h = Math.Clamp((int)MathF.Round(64f * cut.height * uv.H / Math.Max(1f, cut.width * uv.W)), 8, 256);
         UE.RenderTexture? rt = null; UE.Texture2D? rb = null;
         var prev = UE.RenderTexture.active;
@@ -170,6 +178,7 @@ public sealed partial class Plugin
                     if (bytes[(y * w + x) * 4 + 3] > 32) { if (lo < 0) lo = y; hi = y; break; }
             if (lo < 0) return;
             top = 1f - (hi + 1f) / h; bot = 1f - (float)lo / h;
+            _dcBandCache[bandKey] = (top, bot);
         }
         catch (Exception ex) { _services.Log.Warning($"[DungeonConfirm][Art] opaque-band readback failed: {ex.Message}"); }
         finally
