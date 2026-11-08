@@ -269,14 +269,18 @@ public sealed partial class Plugin
     }
 
     // ── centring: every open lands dead centre, then the window is the user's to drag (Dungeon Confirm's recipe, ──
-    // Plugin.DungeonConfirm.Centre.cs: re-centre each frame for ~0.5 s after the show — the first SetRect is a no-op
-    // until mounted and the mount restores the saved rect — then only on a canvas size change).
+    // Plugin.DungeonConfirm.Centre.cs: re-centre each plugin tick for DcCentreFrames ticks after the show — the first
+    // SetRect is a no-op until mounted and the mount restores the saved rect — then only on a canvas size change).
+    // The burst ends the moment the window moves under us (a user drag — DcUserMoved): before that check, every burst
+    // tick dragged it back to centre, so the first drag after an open snapped back (user report 2026-11-08).
     private int   _dhCentreLeft;
     private bool  _dhCentreSub;
     private float _dhCentreCw, _dhCentreCh;
+    private (float X, float Y)? _dhPlaced;   // where we last left the mounted window (null = not mounted / not placed yet)
 
     private void DhStartCentring()
     {
+        _dhPlaced = null;
         DhCentreNow();
         _dhCentreLeft = DcCentreFrames;
         if (!_dhCentreSub) { _services.Framework.Update += OnDhCentreFrame; _dhCentreSub = true; }
@@ -291,6 +295,7 @@ public sealed partial class Plugin
     private void OnDhCentreFrame(float _)
     {
         if (--_dhCentreLeft < 0 || !_dhShow) { DhStopCentring(); return; }
+        if (DcUserMoved(_dhWin, _dhPlaced)) { DhStopCentring(); return; }   // dragged → the user's now
         DhCentreNow();
     }
 
@@ -310,7 +315,8 @@ public sealed partial class Plugin
         var r = _dhWin.Rect;
         float h = r.Height > 1f ? r.Height : DhH;
         float x = MathF.Max(0f, MathF.Floor((cw - DhW) / 2f)), y = MathF.Max(0f, MathF.Floor((ch - h) / 2f));
-        if (Math.Abs(r.X - x) < 0.5f && Math.Abs(r.Y - y) < 0.5f && Math.Abs(r.Width - DhW) < 0.5f) return;
-        _dhWin.SetRect(new WindowRect(x, y, DhW, h));
+        if (!(Math.Abs(r.X - x) < 0.5f && Math.Abs(r.Y - y) < 0.5f && Math.Abs(r.Width - DhW) < 0.5f))
+            _dhWin.SetRect(new WindowRect(x, y, DhW, h));
+        _dhPlaced = DcPlacedPos(_dhWin);   // the live (on-screen-clamped) pose, read back after the set
     }
 }
