@@ -12,8 +12,9 @@ namespace Stellar.DungeonHub;
 //   SOUNDS          open-sound row + chip · Pill dropdown + ▶ · tick row + chip · dropdown + ▶ · Volume slider ·
 //                   [Open sounds folder] + note. A chosen file that can't be played → yellow note under its dropdown.
 //   WINDOW          custom window opacity row + chip · Opacity slider while on (.WindowOpacity.cs)
-// Toolkit notes: the framework Pill dropdown is drawn at its own fixed 28 px (it doesn't take our ×1.6 scale), and its
-// trigger corners are the shared small rounding until the SDK has DropdownElement.CornerRadius (fw ≥ 2.29.0).
+// Toolkit notes: the framework Pill dropdown is drawn at its own fixed 28 px (it doesn't take our ×1.6 scale), so the
+// ▶ next to it is a plain 28 px too (not DcSE): a round control is exactly its side, and the pair must share it.
+// The trigger's capsule corners need DropdownElement.CornerRadius (fw ≥ 2.29.0; the framework caps it at 28/2 − 1 = 13).
 // Sub-lines wrap because they sit in FIXED-width cells (a weighted cell in a Row doesn't give wrapping text a width).
 // ⚠️ Every size here is built only from DcS / DcSE (static METHODS) — see the scale note in .DungeonConfirm.Window.cs.
 public sealed partial class Plugin
@@ -21,10 +22,12 @@ public sealed partial class Plugin
     private static readonly float DsW = DcSE(480f);                                               // 768
     private static readonly float DsInW = DcSE(480f) - 24f - 2f * DcSE(10f);                       // 712 (panel inner)
     private static readonly float DsGap = DcSE(8f), DsChipW = DcSE(64f), DsChipH = DcSE(24f);       // 12 · 102 · 38
-    private static readonly float DsPillH = DcSE(28f), DsPlayW = DcSE(28f);                        // 44 · 44
+    private static readonly float DsPillH = DcSE(28f);                                             // 44
+    // The sound row: framework Pill dropdown (fixed, unscaled 28 px) + a ▶ of the SAME side, both radius side/2 − 1.
+    private const float DsDropH = 28f, DsPlayW = DsDropH, DsDropRadius = DsDropH / 2f - 1f;         // 28 · 28 · 13
     private static readonly float DsLabelW = DsInW - DcSE(64f) - DcSE(8f);                         // 598
     private static readonly float DsHalfW = (DsInW - DcSE(8f)) / 2f;                               // 350
-    private static readonly float DsDropW = DsInW - DcSE(28f) - DcSE(8f);                          // 656
+    private static readonly float DsDropW = DsInW - DsPlayW - DsGap;                               // 672
     private static readonly float DsVolLabelW = DcSE(56f), DsVolValW = DcSE(40f);                  // 90 · 64
     private static readonly float DsFolderW = DcSE(150f), DsFolderNoteW = DsInW - DcSE(150f) - DcSE(8f);   // 240 · 460
 
@@ -121,7 +124,7 @@ public sealed partial class Plugin
         new RowElement(new HudElement[]
         {
             new CellElement(new DropdownElement(() => DcSoundSelected(tick), () => DcSoundOptions(tick), i => DcSoundPick(tick, i),
-                Width: DsDropW) { Style = DropdownStyle.Pill, MaxVisibleRows = 8 }, Width: DsDropW),
+                Width: DsDropW) { Style = DropdownStyle.Pill, CornerRadius = DsDropRadius, MaxVisibleRows = 8 }, Width: DsDropW),
             DsPlayButton(() => DcSoundPreview(tick)),
         }, Gap: DsGap),
         new ConditionalElement(() => DcSoundProblem(tick).Length > 0,
@@ -165,11 +168,12 @@ public sealed partial class Plugin
             CornerRadius = DsChipH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DsChipW,
         };
 
-    // Round neutral ▶ (generated PNG, DcGlyph.Play), 44×44, hover = 10 % text wash.
+    // Round neutral ▶ (generated PNG, DcGlyph.Play), 28×28 = the Pill dropdown beside it, hover = 10 % text wash. The
+    // glyph keeps the mock's 12-in-28 proportion, so it is unscaled too.
     private HudElement DsPlayButton(Action onClick)
     {
         var hover = new DcHover();
-        float glyph = DcSE(12f), side = (DsPlayW - glyph) / 2f;
+        float glyph = 12f, side = (DsPlayW - glyph) / 2f;
         return new CellElement(new BubbleElement(new SelectableElement(new RowElement(new HudElement[]
             {
                 new SpacerElement(side, DsPlayW),
