@@ -100,7 +100,9 @@ public sealed partial class Plugin
             {
                 DcSmall(() => "Confirm screen", MutedColor, DhFsSmall),
                 DcWordSpace(),   // edge spaces in a run are dropped (.DungeonConfirm.Window.cs header note)
-                DcBold(() => _dcReplace ? "On" : "Off", () => Menu.MenuAccent, DhFsSmall),
+                // status ink like the chips: On = house status green (contrast-lifted on light themes), Off = muted, never accent
+                DcBold(() => _dcReplace ? "On" : "Off",
+                    () => _dcReplace ? EnsureContrast(DhGreen, PanelColor(), 4.5f) : MutedColor(), DhFsSmall),
             }, Gap: 0.01f),
         }, Gap: DcS(2f)), Weight: 1f),
         DhCloseButton(DhHideSettings),
@@ -145,14 +147,14 @@ public sealed partial class Plugin
         DhPill(() => label, DcNeutral, () => EnsureContrast(TextColor(), DcNeutral(), 4.5f), onClick, w, DsPillH);
 
     // ON/OFF chip, 102×38 in both states (house "clickable on/off chip", MinimalNameplate recipe): two COMPLETE chips
-    // swapped by a Conditional in one fixed cell, sharing one hover flag. On = bold accent on a 22 % accent wash, off =
-    // muted on the neutral fill.
+    // swapped by a Conditional in one fixed cell, sharing one hover flag. On = bold status green #5fd38d on a 22 % green
+    // wash (NOT the theme accent — a pink accent read as "warning", not "on"), off = muted on the neutral fill.
     private HudElement DsChip(Func<bool> on, Action toggle)
     {
         var hover = new DcHover();
-        Func<ColorRgba> onFill = () => DcWash(Menu.MenuAccent, 0.22f);
+        Func<ColorRgba> onFill = () => DcWash(DhGreen, 0.22f);
         return new CellElement(new ConditionalElement(on,
-            DsChipShell(DcDrop(DcBold(() => "ON", () => EnsureContrast(Menu.MenuAccent, onFill(), 4.5f), DcFsSmall, DsChipW, TextAlign.Center)),
+            DsChipShell(DcDrop(DcBold(() => "ON", () => EnsureContrast(DhGreen, onFill(), 4.5f), DcFsSmall, DsChipW, TextAlign.Center)),
                 onFill, hover, toggle),
             DsChipShell(DcSmall(() => "OFF", MutedColor, DcFsSmall, DsChipW, TextAlign.Center), DcNeutral, hover, toggle)),
             Width: DsChipW);
