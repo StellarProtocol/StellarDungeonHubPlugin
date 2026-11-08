@@ -8,7 +8,8 @@ namespace Stellar.DungeonHub;
 // Dungeon Confirm — our own sounds, replacing the game's MatchAudio cue (no longer played, .Lua.cs). Defaults = two
 // user-approved embedded WAVs (44.1 kHz stereo 16-bit): dc_enter (3.05 s boom) when the window opens for a REAL request,
 // and dc_tick (0.97 s beep) on each countdown second 10..1 while I still have to answer. Either can be swapped for the
-// user's own .wav / .mp3 (.SoundFiles.cs). Preview opens stay silent (the settings' ▶ buttons cover sound).
+// user's own .wav / .mp3 (.SoundFiles.cs). Previews sound exactly like a real request (open sound + the last-10 s
+// ticks, same toggles / files / volume). Replace OFF = silent everywhere: the sounds belong to the replacement window.
 //
 // Playback = a dedicated MechAudioPlayer (winmm PlaySound, in-memory WAV, own background thread — Mechanic-Callouts.md
 // "Local audio"). winmm ignores the game's mixer, so it is heard with the game muted or in the background; that's the
@@ -73,18 +74,21 @@ public sealed partial class Plugin
 
     private string DcSoundFile(bool tick) => tick ? _dcTickFile : _dcOpenFile;
 
-    // Called once per request, on its first show (DcApplySnap — never for Preview, re-polls or re-centres).
+    // Called once per request, on its first show (DcApplySnap — never on re-polls or re-centres) and once per Preview
+    // open (DcStartPreview).
     private void DcSoundOnOpen()
     {
         _dcLastTick = int.MaxValue;
-        if (_dcSoundOpen) DcPlay(false, DcTagEnter);
+        if (_dcSoundOpen && _dcReplace) DcPlay(false, DcTagEnter);
     }
 
     private void DcSoundStopTicks() { _dcGenTick++; _dcAudio?.Stop(DcTagTick); }
     private void DcSoundStopAll()   { _dcGenEnter++; _dcGenTick++; _dcGenTest++; _dcAudio?.Stop(); }
 
     // I still have to act: team = a member (never the leader) who hasn't confirmed/declined; match = until I answer.
-    private bool DcNeedsMyAnswer => _dc != null && !_dcPreview && _dcEnd == DcEnd.None && !_dcConfirmed &&
+    // SOUND ONLY (ticks): a Preview counts too — its fake "me" is an unanswered member and its countdown runs, so it
+    // ticks the last 10 s like a real request; its buttons only close (DcHide stops everything).
+    private bool DcNeedsMyAnswer => _dc != null && _dcReplace && _dcEnd == DcEnd.None && !_dcConfirmed &&
         (_dcShow5 || _dcShowRaid) && (_dc.Match ? !_dcMatchDeclined : !_dc.IAmLeader) && _dc.Me is not { Ready: not 0 };
 
     private void DcSoundTick()
@@ -194,7 +198,7 @@ public sealed partial class Plugin
     }
 
     // ▶ next to a dropdown: that one sound, once, at the current volume (toggles ignored — it's an explicit preview).
-    private void DcSoundPreview(bool tick) => DcPlay(tick, DcTagTest);
+    private void DcSoundPreview(bool tick) { if (_dcReplace) DcPlay(tick, DcTagTest); }   // the button is inert when OFF too
 
     // Dropdown options: "Default", every listed file, and the saved choice even when it is gone (so the caption still
     // names it while the yellow note explains). Rebuilt only when the list or the choice changed — the same instance

@@ -2,7 +2,8 @@ namespace Stellar.DungeonHub;
 
 // Dungeon Confirm — "Preview 5-player" / "Preview raid": the real window on FAKE data, to check the look in game without
 // a party. Purely local: no Lua at all, every button only closes, and the countdown runs to the "Time ran out" end
-// state. A real request arriving meanwhile replaces the preview (DcTick). Art paths are real table values
+// state, with the real open sound + countdown ticks (current sound settings; silent while Replace is OFF). A real
+// request arriving meanwhile replaces the preview (DcTick). Art paths are real table values
 // (ChallengeHeroDungeonTable 6007-style key art / RaidDungeonTable 13001 MonsterShowTexture over its DiffBgTexture) so
 // the crop and the raid compose are exercised; class icons use real profession ids; affix ids/icons are AffixTable rows.
 // SugarMahiru = me (accent outline, no YOU tag) + ASSIST (the longest name+tag case, cut at 552 px) with a 6-digit
@@ -22,6 +23,7 @@ public sealed partial class Plugin
         _dc = s;
         if (s.Twenty) DcBuildGrid(s); else DcFitAffixLabels(s);
         DcShow();
+        DcSoundOnOpen();   // previews sound like a real request: open sound now, ticks for the last 10 s (.Sound.cs)
     }
 
     private static DcMember DcFake(string name, int lvl, int prof, int ready, bool leader = false, bool me = false,

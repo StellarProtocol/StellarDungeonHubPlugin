@@ -46,7 +46,8 @@ public sealed partial class Plugin
 
     private void InitDungeonConfirm()
     {
-        _dcReplace = _cfg.Get<bool>("dungeon_confirm_replace", false);
+        // Opt-OUT (default ON since 2026-11-08): a user who turned it off keeps OFF — the saved value wins.
+        _dcReplace = _cfg.Get<bool>("dungeon_confirm_replace", true);
         _dcSettingsWindow = DcRegisterSettings();   // house-style settings (.DungeonConfirm.Settings.cs)
         InitDcWindows();   // Plugin.DungeonConfirm.Window.cs
         InitDcSound();     // Plugin.DungeonConfirm.Sound.cs (open sound + countdown ticks)
@@ -85,6 +86,7 @@ public sealed partial class Plugin
         _cfg.Save();
         DcSetFlag(on);
         if (!on && !_dcPreview) DcHide();   // the pending request (if any) just moved to the game's view
+        if (!on) DcSoundStopAll();          // an open Preview stays up, but OFF = no sounds (.Sound.cs)
     }
 
     // Logout runs synchronously (Update is world-gated): hide now, drop the request. Its stash belongs to the old session.

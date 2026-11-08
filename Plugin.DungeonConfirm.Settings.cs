@@ -11,6 +11,7 @@ namespace Stellar.DungeonHub;
 //   CONFIRM SCREEN  replace row + chip · [Preview 5-player] [Preview raid]
 //   SOUNDS          open-sound row + chip · Pill dropdown + ▶ · tick row + chip · dropdown + ▶ · Volume slider ·
 //                   [Open sounds folder] + note. A chosen file that can't be played → yellow note under its dropdown.
+//                   Replace OFF → the whole section is inert + faded, with a "why" line under the caption (DsSoundsOn).
 //   WINDOW          custom window opacity row + chip · Opacity slider while on (.WindowOpacity.cs)
 // Toolkit notes: the framework Pill dropdown is drawn at its own fixed 28 px (it doesn't take our ×1.6 scale), so the
 // ▶ next to it is a plain 28 px too (not DcSE): a round control is exactly its side, and the pair must share it.
@@ -66,16 +67,24 @@ public sealed partial class Plugin
                 DsNeutralPill("Preview raid",     () => DcStartPreview(true),  DsHalfW),
             }, Gap: DsGap)),
         DcPanel(() => "SOUNDS", new SpacerElement(0f, 0f),
-            DsToggleRow("Sound when it opens", null, () => _dcSoundOpen,
-                () => SetDcSoundBool("dungeon_confirm_sound_open", !_dcSoundOpen, x => _dcSoundOpen = x)),
+            // Replace OFF → the "why" line first. A Then/Else pair (the note + row, or the row alone), not a lone
+            // Conditional: a hidden Cond still takes a panel gap, which would shift the section while Replace is on.
+            new ConditionalElement(() => !_dcReplace,
+                new ColumnElement(new HudElement[]
+                {
+                    new CellElement(DsWrapNote("Sounds play on the replacement screen. Turn it on to use them."), Width: DsInW),
+                    DsOpenSoundRow(),
+                }, Gap: DcPanelGap),
+                DsOpenSoundRow()),
             DsSoundPicker(tick: false),
             DsToggleRow("Countdown ticks", "Each second for the last 10 s while you still have to answer", () => _dcSoundTicks,
-                () => SetDcSoundBool("dungeon_confirm_sound_ticks", !_dcSoundTicks, x => { _dcSoundTicks = x; if (!x) DcSoundStopTicks(); })),
+                () => SetDcSoundBool("dungeon_confirm_sound_ticks", !_dcSoundTicks, x => { _dcSoundTicks = x; if (!x) DcSoundStopTicks(); }),
+                DsSoundsOn),
             DsSoundPicker(tick: true),
             DsVolumeRow(),
             new RowElement(new HudElement[]
             {
-                DsNeutralPill("Open sounds folder", DcOpenSoundsFolder, DsFolderW),
+                DsNeutralPill("Open sounds folder", DcOpenSoundsFolder, DsFolderW, DsSoundsOn),
                 new CellElement(DsWrapNote("Put your own .wav or .mp3 files here, then pick them above."), Width: DsFolderNoteW),
             }, Gap: DsGap)),
         DsWindowPanel(),   // WINDOW: custom opacity (.WindowOpacity.cs)
@@ -108,13 +117,28 @@ public sealed partial class Plugin
         DhCloseButton(DhHideSettings),
     }, Gap: DcSE(10f));
 
+    // ── SOUNDS disabled while Replace is OFF ──────────────────────────────────────────────────────────────────────
+    // The sounds only ever play from the replacement window (and its previews), so with Replace OFF every SOUNDS
+    // control is inert and drawn in the plugin's disabled look — the locked Solo/Match/Party pill fade
+    // (.DungeonHub.Detail.cs DhGoButton): fill 55 % of the way from the panel, ink 40 % text-over-panel. The saved
+    // settings are never touched; Replace back ON brings everything back as it was. Same geometry in both states:
+    // chips / pills / ▶ keep their shell and only gate click + hover; the dropdown (no disabled flag in the SDK) is
+    // swapped for a static look-alike; the slider uses SliderElement.Enabled (Unity interactable).
+    private bool DsSoundsOn() => _dcReplace;
+    private ColorRgba DsOffFill(ColorRgba fill) => Mix(PanelColor(), fill, 0.55f);
+    private ColorRgba DsOffInk() => Mix(PanelColor(), TextColor(), 0.4f);
+    private Func<ColorRgba> DsLabelInk(Func<bool>? enabled) => () => enabled == null || enabled() ? TextColor() : MutedColor();
+
+    private HudElement DsOpenSoundRow() => DsToggleRow("Sound when it opens", null, () => _dcSoundOpen,
+        () => SetDcSoundBool("dungeon_confirm_sound_open", !_dcSoundOpen, x => _dcSoundOpen = x), DsSoundsOn);
+
     // ── rows ──────────────────────────────────────────────────────────────────────────────────────────────────────
-    // label (+ muted wrapping sub-line) in a fixed cell · the ON/OFF chip pinned right.
-    private HudElement DsToggleRow(string label, string? sub, Func<bool> on, Action toggle)
+    // label (+ muted wrapping sub-line) in a fixed cell · the ON/OFF chip pinned right. enabled null = always live.
+    private HudElement DsToggleRow(string label, string? sub, Func<bool> on, Action toggle, Func<bool>? enabled = null)
     {
-        HudElement text = DcSmall(() => label, TextColor, DcFsBody);
+        HudElement text = DcSmall(() => label, DsLabelInk(enabled), DcFsBody);
         if (sub != null) text = new ColumnElement(new HudElement[] { text, DsWrapNote(sub) }, Gap: DcS(2f));
-        return new RowElement(new HudElement[] { new CellElement(text, Width: DsLabelW), DsChip(on, toggle) }, Gap: DsGap);
+        return new RowElement(new HudElement[] { new CellElement(text, Width: DsLabelW), DsChip(on, toggle, enabled) }, Gap: DsGap);
     }
 
     private TextElement DsWrapNote(string text) =>
@@ -125,9 +149,11 @@ public sealed partial class Plugin
     {
         new RowElement(new HudElement[]
         {
-            new CellElement(new DropdownElement(() => DcSoundSelected(tick), () => DcSoundOptions(tick), i => DcSoundPick(tick, i),
-                Width: DsDropW) { Style = DropdownStyle.Pill, CornerRadius = DsDropRadius, MaxVisibleRows = 8 }, Width: DsDropW),
-            DsPlayButton(() => DcSoundPreview(tick)),
+            new CellElement(new ConditionalElement(DsSoundsOn,
+                new DropdownElement(() => DcSoundSelected(tick), () => DcSoundOptions(tick), i => DcSoundPick(tick, i),
+                    Width: DsDropW) { Style = DropdownStyle.Pill, CornerRadius = DsDropRadius, MaxVisibleRows = 8 },
+                DsDropdownOff(tick)), Width: DsDropW),
+            DsPlayButton(() => DcSoundPreview(tick), DsSoundsOn),
         }, Gap: DsGap),
         new ConditionalElement(() => DcSoundProblem(tick).Length > 0,
             new CellElement(new TextElement(() => $"Can't play {DcSoundProblem(tick)} · using the default sound",
@@ -136,54 +162,106 @@ public sealed partial class Plugin
 
     private HudElement DsVolumeRow() => new RowElement(new HudElement[]
     {
-        new CellElement(DcSmall(() => "Volume", MutedColor, DcFsBody), Width: DsVolLabelW),
-        new CellElement(new SliderElement(() => _dcSoundVolume, SetDcSoundVolume, 0f, 100f)
+        new CellElement(DcSmall(() => "Volume", () => DsSoundsOn() ? MutedColor() : DsOffInk(), DcFsBody), Width: DsVolLabelW),
+        // Enabled = Unity Slider.interactable (framework SliderBinding): no drag while Replace is OFF, same geometry. The
+        // SDK can't recolour the track fill, so only the knob takes Unity's disabled tint; the label + value go muted.
+        new CellElement(new SliderElement(() => _dcSoundVolume, SetDcSoundVolume, 0f, 100f, DsSoundsOn)
             { SquareHandle = true, HandleSize = DcSE(14f) }, Weight: 1f),
-        new CellElement(DcBold(() => $"{_dcSoundVolume}%", TextColor, DcFsSmall, DsVolValW, TextAlign.Right), Width: DsVolValW),
+        new CellElement(DcBold(() => $"{_dcSoundVolume}%", DsLabelInk(DsSoundsOn), DcFsSmall, DsVolValW, TextAlign.Right), Width: DsVolValW),
     }, Gap: DsGap);
 
+    // Static stand-in for the Pill dropdown trigger while SOUNDS is disabled: the framework trigger's own composition
+    // (WindowBuilder.Dropdown.Pill.cs — 12 px insets, bold 13 caption, 6 px gap, 8×5 ▾, capsule radius 13, 28 tall),
+    // no Selectable, so nothing opens. The caption still names the saved choice; ▾ is our generated image (no TMP ▾).
+    private HudElement DsDropdownOff(bool tick)
+    {
+        const float padX = 12f, chevGap = 6f, chevW = 8f;
+        Func<string> caption = () => { var o = DcSoundOptions(tick); int i = DcSoundSelected(tick); return i >= 0 && i < o.Count ? o[i] : ""; };
+        return new BubbleElement(new RowElement(new HudElement[]
+        {
+            new SpacerElement(padX, DsDropH),
+            new CellElement(new RowElement(new HudElement[]
+            {
+                new TextElement(caption, Color: () => DsOffInk(), NoWrap: true, FontSize: 13) { Bold = true, Ellipsize = true },
+                new SpacerElement(chevGap, 0f),
+                new ImageElement(() => DcGlyphPng(DcGlyph.Chevron, chevW, DsOffInk()), (int)chevW, (int)chevW),
+            }, Gap: 0.01f, Justify: RowJustify.Center), Width: DsDropW - 2f * padX),
+            new SpacerElement(padX, DsDropH),
+        }, Gap: 0.01f, Justify: RowJustify.Center))
+        {
+            FillColorFn = () => Fade(DsOffFill(DcNeutral())), CornerRadius = DsDropRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DsDropW,
+        };
+    }
+
     // ── controls ──────────────────────────────────────────────────────────────────────────────────────────────────
-    private HudElement DsNeutralPill(string label, Action onClick, float w) =>
-        DhPill(() => label, DcNeutral, () => EnsureContrast(TextColor(), DcNeutral(), 4.5f), onClick, w, DsPillH);
+    // enabled null = always live. Disabled = same pill, click + hover gated, disabled fill + ink.
+    private HudElement DsNeutralPill(string label, Action onClick, float w, Func<bool>? enabled = null)
+    {
+        if (enabled == null)
+            return DhPill(() => label, DcNeutral, () => EnsureContrast(TextColor(), DcNeutral(), 4.5f), onClick, w, DsPillH);
+        var hover = new DcHover();
+        Func<ColorRgba> fill = () => enabled() ? DcNeutral() : DsOffFill(DcNeutral());
+        return new CellElement(new BubbleElement(new SelectableElement(new RowElement(new HudElement[]
+            {
+                new SpacerElement(0f, DsPillH),
+                DcDrop(DcBold(() => label, () => enabled() ? EnsureContrast(TextColor(), DcNeutral(), 4.5f) : DsOffInk(),
+                    DhFsSmall, w, TextAlign.Center)),
+            }, Gap: 0.01f, Justify: RowJustify.Center), OnClick: () => { if (enabled()) onClick(); })
+            { Bare = true, OnHover = o => hover.On = o })
+            {
+                FillColorFn = () => Fade(hover.On && enabled() ? Over(Menu.MenuText with { A = 0.10f }, fill()) : fill()),
+                CornerRadius = DsPillH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
+            }, Width: w);
+    }
 
     // ON/OFF chip, 102×38 in both states (house "clickable on/off chip", MinimalNameplate recipe): two COMPLETE chips
     // swapped by a Conditional in one fixed cell, sharing one hover flag. On = bold status green #5fd38d on a 22 % green
     // wash (NOT the theme accent — a pink accent read as "warning", not "on"), off = muted on the neutral fill.
-    private HudElement DsChip(Func<bool> on, Action toggle)
+    // Disabled (enabled() false): still shows the saved ON/OFF, in the disabled fade; click + hover do nothing.
+    private HudElement DsChip(Func<bool> on, Action toggle, Func<bool>? enabled = null)
     {
         var hover = new DcHover();
-        Func<ColorRgba> onFill = () => DcWash(DhGreen, 0.22f);
+        Func<bool> live = enabled ?? (() => true);
+        Func<ColorRgba> onFill = () => live() ? DcWash(DhGreen, 0.22f) : DsOffFill(DcWash(DhGreen, 0.22f));
+        Func<ColorRgba> offFill = () => live() ? DcNeutral() : DsOffFill(DcNeutral());
+        Action click = () => { if (live()) toggle(); };
         return new CellElement(new ConditionalElement(on,
-            DsChipShell(DcDrop(DcBold(() => "ON", () => EnsureContrast(DhGreen, onFill(), 4.5f), DcFsSmall, DsChipW, TextAlign.Center)),
-                onFill, hover, toggle),
-            DsChipShell(DcSmall(() => "OFF", MutedColor, DcFsSmall, DsChipW, TextAlign.Center), DcNeutral, hover, toggle)),
+            DsChipShell(DcDrop(DcBold(() => "ON", () => live() ? EnsureContrast(DhGreen, onFill(), 4.5f) : DsOffInk(),
+                DcFsSmall, DsChipW, TextAlign.Center)), onFill, hover, click, live),
+            DsChipShell(DcSmall(() => "OFF", () => live() ? MutedColor() : DsOffInk(), DcFsSmall, DsChipW, TextAlign.Center),
+                offFill, hover, click, live)),
             Width: DsChipW);
     }
 
-    private HudElement DsChipShell(HudElement label, Func<ColorRgba> fill, DcHover hover, Action onClick) =>
+    private HudElement DsChipShell(HudElement label, Func<ColorRgba> fill, DcHover hover, Action onClick, Func<bool> live) =>
         new BubbleElement(new SelectableElement(new RowElement(new HudElement[]
             {
                 new SpacerElement(0f, DsChipH), label,
             }, Gap: 0.01f, Justify: RowJustify.Center), OnClick: onClick) { Bare = true, OnHover = o => hover.On = o })
         {
-            FillColorFn = () => Fade(hover.On ? Over(Menu.MenuText with { A = 0.10f }, fill()) : fill()),
+            FillColorFn = () => Fade(hover.On && live() ? Over(Menu.MenuText with { A = 0.10f }, fill()) : fill()),
             CornerRadius = DsChipH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DsChipW,
         };
 
     // Round neutral ▶ (generated PNG, DcGlyph.Play), 28×28 = the Pill dropdown beside it, hover = 10 % text wash. The
-    // glyph keeps the mock's 12-in-28 proportion, so it is unscaled too.
-    private HudElement DsPlayButton(Action onClick)
+    // glyph keeps the mock's 12-in-28 proportion, so it is unscaled too. Disabled: click + hover gated, faded fill, and
+    // the glyph swapped (Conditional, same 12×12) for a disabled-ink copy — an ImageElement's PNG is baked once at build.
+    private HudElement DsPlayButton(Action onClick, Func<bool> enabled)
     {
         var hover = new DcHover();
         float glyph = 12f, side = (DsPlayW - glyph) / 2f;
+        Func<ColorRgba> fill = () => enabled() ? DcNeutral() : DsOffFill(DcNeutral());
         return new CellElement(new BubbleElement(new SelectableElement(new RowElement(new HudElement[]
             {
                 new SpacerElement(side, DsPlayW),
-                new ImageElement(() => DcGlyphPng(DcGlyph.Play, glyph, EnsureContrast(TextColor(), DcNeutral(), 4.5f)), (int)glyph, (int)glyph),
+                new ConditionalElement(enabled,
+                    new ImageElement(() => DcGlyphPng(DcGlyph.Play, glyph, EnsureContrast(TextColor(), DcNeutral(), 4.5f)), (int)glyph, (int)glyph),
+                    new ImageElement(() => DcGlyphPng(DcGlyph.Play, glyph, DsOffInk()), (int)glyph, (int)glyph)),
                 new SpacerElement(side, DsPlayW),
-            }, Gap: 0.01f, Justify: RowJustify.Center), OnClick: onClick) { Bare = true, OnHover = o => hover.On = o })
+            }, Gap: 0.01f, Justify: RowJustify.Center), OnClick: () => { if (enabled()) onClick(); })
+            { Bare = true, OnHover = o => hover.On = o })
             {
-                FillColorFn = () => Fade(hover.On ? Over(Menu.MenuText with { A = 0.10f }, DcNeutral()) : DcNeutral()),
+                FillColorFn = () => Fade(hover.On && enabled() ? Over(Menu.MenuText with { A = 0.10f }, fill()) : fill()),
                 CornerRadius = DsPlayW / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DsPlayW,
             }, Width: DsPlayW);
     }
