@@ -79,6 +79,7 @@ public sealed partial class Plugin
                     new ConditionalElement(() => DhCur is { MasterCount: > 0 }, DhDiffChip(DhMasterIdx, DhChipWideW)),
                 }, Gap: DhPanGap))),
         DhMidBlock(),
+        DhCaption(() => L("dh.cap.howToGo")),   // outside the block: always directly above the buttons
         new RowElement(new HudElement[]
         {
             DhGoButton(0, DhThirdW, DhOnSolo),
@@ -86,8 +87,8 @@ public sealed partial class Plugin
             DhGoButton(2, DhThirdW, DhOnParty),
         }, Gap: DhPanGap));
 
-    // The block between the chips and the buttons: a DhMidH strut beside a TOP-aligned Fill Conditional (Master = grid
-    // · legend · tiles · caption, else tiles · caption). Its height is max(strut, content), and DhMidH carries 26 px
+    // The block between the chips and the HOW TO GO caption: a DhMidH strut beside a TOP-aligned Fill Conditional
+    // (Master = grid · legend · tiles, else tiles). Its height is max(strut, content), and DhMidH carries 26 px
     // (DhMidSlack) of headroom over the Master content, so it is the strut in every state and the window never changes
     // height. v4 instead relied on two variants summing to the same number on paper; text taller than its strut (legend
     // 18 px in 22, the grid's bold label in 28) made Master ~14 px taller in game, the window grew, and the vertically
@@ -98,12 +99,9 @@ public sealed partial class Plugin
         new CellElement(new ConditionalElement(() => DhIsMaster,
             new ColumnElement(new HudElement[]
             {
-                DhMasterGrid(), DhMasterLegend(), DhInfoTiles(), DhCaption(() => L("dh.cap.howToGo")),
+                DhMasterGrid(), DhMasterLegend(), DhInfoTiles(),
             }, Gap: DhPanGap),
-            new ColumnElement(new HudElement[]
-            {
-                DhInfoTiles(), DhCaption(() => L("dh.cap.howToGo")),
-            }, Gap: DhPanGap), Fill: true), Width: DhDetInW),
+            new ColumnElement(new HudElement[] { DhInfoTiles() }, Gap: DhPanGap), Fill: true), Width: DhDetInW),
     }, Gap: 0.01f);
 
     // Recommended · Your score · third tile: Normal / Hard "First clear" (Reward ready green / Claimed muted, v5), Master

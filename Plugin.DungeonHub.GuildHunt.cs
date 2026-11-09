@@ -121,11 +121,9 @@ public sealed partial class Plugin
         new RowElement(new HudElement[]
         {
             new SpacerElement(0f, DhMidH),
-            new CellElement(DhTopPinned(new ColumnElement(new HudElement[]
-            {
-                DhGhTiles(), DhCaption(() => L("dh.cap.howToGo")),
-            }, Gap: DhPanGap)), Width: DhDetInW),
+            new CellElement(DhTopPinned(DhGhTiles()), Width: DhDetInW),
         }, Gap: 0.01f),
+        DhCaption(() => L("dh.cap.howToGo")),   // outside the block: always directly above the buttons (Detail.cs)
         new RowElement(new HudElement[]
         {
             DhGoButton(0, DhThirdW, DhOnSolo),

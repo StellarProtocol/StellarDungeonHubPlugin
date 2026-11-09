@@ -31,7 +31,8 @@ public sealed partial class Plugin
     private static readonly float DhRowLead = DcSE(4f), DhRowGapX = DcSE(8f);                              // 6 · 12
     private static readonly float DhRowTextW = DhRowW - DhRowLead - DhThumbW - 2f * DhRowGapX;             // 226
     private static readonly float DhRowPitchPad = DcSE(6f) - 2f;                                            // 8
-    // Detail: inner 652 × 640 = art 180 · name 34 · caption · chips 44 · the difficulty block 240 · buttons 64.
+    // Detail: inner 652 × 744 = art 180 · name 34 · caption 28 · chips 44 · the difficulty block 306 · caption 28 ·
+    // buttons 64 (+ 6 gaps of 10).
     private static readonly float DhDetInW = DhDetW - 2f * DhPanPadX;                                       // 652
     private static readonly float DhArtH = DcSE(112f), DhNameH = DcSE(21f);                                 // 180 · 34
     private static readonly float DhChipH = DcSE(28f), DhChipW = DcSE(72f), DhChipWideW = DcSE(92f);        // 44 · 116 · 148
@@ -46,8 +47,12 @@ public sealed partial class Plugin
     private static readonly float DhLvGapX = (DhDetInW - 10f * DhLvW) / 9f;                                // 6.9
     private static readonly float DhGridH = 2f * DhLvH + DhLvGap;                                           // 94
     // The block under the chips is ONE height in every state, so Solo / Match / Party never move (Detail.cs DhMidBlock):
-    // a strut of DhMidH beside a top-aligned Fill Conditional — Master = grid · legend · tiles · caption, other = tiles ·
-    // caption; the leftover sits under the caption. DhMidSlack is headroom for text that measures taller than its strut
+    // a strut of DhMidH beside a top-aligned Fill Conditional — Master = grid · legend · tiles, other = tiles; the
+    // leftover sits under the tiles. The HOW TO GO caption is NOT in the block (2026-11-09, user-approved): it sits in
+    // the panel column directly above Solo / Match / Party, so a short (non-Master) variant leaves its gap ABOVE the
+    // caption instead of between the caption and the buttons. DhMidH dropped DhCapH + one DhPanGap (344 → 306) and
+    // DhColsH gained them back as a panel row, so every height below is unchanged (770 / 1006 / 706 / filler / 417).
+    // DhMidSlack is headroom for text that measures taller than its strut
     // (v4 sized the block to the exact sum, and the Master variant came out taller — the "list moves" bug, v5 §8).
     // Measured in game (v4, 2026-11-07 screenshots): the Master variant came out ~14 px over its paper sum; 26 px of
     // headroom keeps the strut the taller of the two with margin, so the window height never changes.
@@ -57,10 +62,11 @@ public sealed partial class Plugin
     // so every tab grows by the same amount — the window stays one height and the dungeon panel's buttons stay at
     // its bottom; the list viewport (DhScrollH) and the activity filler grow with DhColsH. 74 = 67 needed + 7 slack.
     private static readonly float DhCmRoom = DcSE(46f);                                                     // 74
-    private static readonly float DhMidH = DhGridH + DhLegendH + DhTileH + DhCapH + 3f * DhPanGap + DhMidSlack
-                                         + DhCmRoom;                                                        // 344
-    private static readonly float DhColsH = 2f * DhPanPadY + DhArtH + DhNameH + DhCapH + DhChipH + DhMidH
-                                          + DhBtnH + 5f * DhPanGap;                                         // 770
+    private static readonly float DhMidH = DhGridH + DhLegendH + DhTileH + 2f * DhPanGap + DhMidSlack
+                                         + DhCmRoom;                                                        // 306
+    // Panel column: art · name · DIFFICULTY caption · chips · mid block · HOW TO GO caption · buttons (7 rows, 6 gaps).
+    private static readonly float DhColsH = 2f * DhPanPadY + DhArtH + DhNameH + 2f * DhCapH + DhChipH + DhMidH
+                                          + DhBtnH + 6f * DhPanGap;                                         // 770
     private static readonly float DhH = 24f + DhHeaderH + DhTabH + 2f * DhTabPadY + DhColsH + DhBarH + 3f * DhGap;  // 1006
     private static readonly float DhScrollH = DhColsH - 2f * DhPanPadY - DhCapH - DhPanGap;                // 706
     // Activity panel: art · name · sub-line ("This week: <boss>", 26 px strut for an 18 px line) · tiles · filler · caption · buttons.
