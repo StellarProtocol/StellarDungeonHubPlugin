@@ -301,7 +301,10 @@ public sealed partial class Plugin
             if (e.Levels[i] is not { Unlocked: true, CounterVal.Length: > 0 } l) continue;
             int slash = l.CounterVal.IndexOf('/');
             string rem = (slash > 0 ? l.CounterVal[..slash] : l.CounterVal).Trim();
-            string label = i == 2 && shown == 3 ? L("dh.diff.nightmareShort") : l.Label;
+            // Easy/Hard get their own short keys too (fil "Madali"/"Mahirap" overflow; other locales = full word).
+            string label = i == 2 && shown == 3 ? L("dh.diff.nightmareShort")
+                : l.Label == L("dh.diff.easy") ? L("dh.diff.easyShort")
+                : l.Label == L("dh.diff.hard") ? L("dh.diff.hardShort") : l.Label;
             if (sb.Length > 0) sb.Append(" · ");
             sb.Append("<color=#").Append(DhRaidHex[i]).Append(l.CounterZero ? "8c" : "").Append('>')
               .Append(label).Append(' ').Append(rem).Append("</color>");

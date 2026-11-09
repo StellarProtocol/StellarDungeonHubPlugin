@@ -89,11 +89,13 @@
   "dh.cm.notAcceptedLeft": "Hindi pa tinanggap · {0} natitira",
   "dh.cm.notice": "Bureau Commissions: {0}",
   "dh.cm.resetIn": "sa loob ng {0}",
-  "dh.counter": "Tirang premyo {0}",
+  "dh.counter": "Premyo {0}",
   "dh.counter.none": "{0} · walang premyo",
   "dh.counterFor": "{0} · {1}",
   "dh.diff.easy": "Madali",
+  "dh.diff.easyShort": "Easy",
   "dh.diff.hard": "Mahirap",
+  "dh.diff.hardShort": "Hard",
   "dh.diff.master": "Master",
   "dh.diff.masterN": "Master {0}",
   "dh.diff.nightmare": "Bangungot",
@@ -199,5 +201,5 @@
   "dh.word.firstClear": "Unang clear",
   "dh.word.locked": "Naka-lock",
   "dh.word.rewardReady": "Handang kunin",
-  "dh.word.rewardsLeft": "Tirang premyo"
+  "dh.word.rewardsLeft": "Premyo"
 }
