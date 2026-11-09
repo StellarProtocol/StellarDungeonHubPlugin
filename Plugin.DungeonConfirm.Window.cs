@@ -20,7 +20,7 @@ namespace Stellar.DungeonHub;
 //   • · … render in the TMP faces (TmpStyledText.Ellipsis: both shipped TMP faces carry U+2026). ✓ ✕ ★ are NOT
 //     trusted in BOLD (the header's bold ✕ drew blank in game, 2026-11-06), so every one is a generated PNG (Art.cs).
 //   • Text runs side by side lose their edge spaces (a TMP run's preferred width drops trailing whitespace: "Leader " +
-//     name read "LeaderMahiru"), so runs carry no edge spaces and the word gap is an explicit DcWordGap spacer.
+//     name read "LeaderPlayer"), so runs carry no edge spaces and the word gap is an explicit DcWordGap spacer.
 public sealed partial class Plugin
 {
     // ── scale ─────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -36,7 +36,7 @@ public sealed partial class Plugin
     private static int   DcSi(float x) => (int)DcS(x);
 
     private const float DcPad = 24f;   // framework GlassMenu body padding (12 per side) — fixed, NOT scaled
-    // 5-player width: 345 × 1.6 = 552 cut "SugarMahiru YOU ASSIST" to "SugarMa…" in game (2026-11-06), so it is 680
+    // 5-player width: 345 × 1.6 = 552 cut an 11-glyph name + "YOU ASSIST" to 7 glyphs + "…" in game (2026-11-06), so it is 680
     // (425 × 1.6); the extra 128 goes to the flexible name cell and header title. Height unchanged; art strip just wider.
     private static readonly float Dc5W = DcSE(425f), DcRW = DcSE(640f);                                    // 680 / 1024
     private static readonly float DcHeaderH = DcSE(40f), DcBarH = DcSE(6f), DcCaptionH = DcSE(18f);        // 64 · 10 · 28
@@ -413,7 +413,7 @@ public sealed partial class Plugin
     // One 42 px Tile row: class icon · name + ASSIST · ability score · status pill. My row: 1 px accent outline — that
     // alone marks me; the "YOU" tag came off both layouts (user, 2026-11-06), so the fixed name cell just gives names room.
     // Horizontal parts are all even (6+32+12 … 12+140+12+122+10 = 346), so the name cell is even too (624 − 346 = 278;
-    // "SugarMahiru" bold 21 + ASSIST ≈ 195). Exact 624 wide (Dc5RowW note); an unfilled slot = DcEmptyRow.
+    // an 11-glyph name bold 21 + ASSIST ≈ 195). Exact 624 wide (Dc5RowW note); an unfilled slot = DcEmptyRow.
     private HudElement DcPartyRow(int i) => new ConditionalElement(() => DcMem(i) != null,
         new BubbleElement(new RowElement(new HudElement[]
         {

@@ -6,8 +6,8 @@ namespace Stellar.DungeonHub;
 // request arriving meanwhile replaces the preview (DcTick). Art paths are real table values
 // (ChallengeHeroDungeonTable 6007-style key art / RaidDungeonTable 13001 MonsterShowTexture over its DiffBgTexture) so
 // the crop and the raid compose are exercised; class icons use real profession ids; affix ids/icons are AffixTable rows.
-// SugarMahiru = me (accent outline, no YOU tag) + ASSIST (the longest name+tag case, cut at 552 px) with a 6-digit
-// score "123,456 (4,675)"; Kirin = score without IBS → no brackets; Tomo = score 0 → "—" (no score sent). Both
+// Player 2 = me (accent outline, no YOU tag) + ASSIST (the name+tag case that was cut at 552 px) with a 6-digit
+// score "123,456 (4,675)"; Player 3 = score without IBS → no brackets; Player 4 = score 0 → "—" (no score sent). Both
 // previews leave slots empty (4 of 5 / 7 of 20 over groups 1-3) so the placeholder rows show.
 public sealed partial class Plugin
 {
@@ -39,10 +39,10 @@ public sealed partial class Plugin
         };
         s.Affixes.Add(new DcAffix { Id = 102, Name = "Void Corruption Afterimage", Icon = "ui/atlas/affix/com_affix_s1_flux_shadow1" });
         s.Affixes.Add(new DcAffix { Id = 106, Name = "Illusion Invasion", Icon = "ui/atlas/affix/com_affix_s1_flux_meteor1" });
-        s.Members.Add(DcFake("Mahiru",      60, 1, 1, leader: true, score: 48215, ibs: 4552));
-        s.Members.Add(DcFake("SugarMahiru", 60, 2, 0, me: true, assist: true, score: 123456, ibs: 4675));
-        s.Members.Add(DcFake("Kirin",       58, 5, 1, score: 39870));   // prof 5 = green badge (1/2 red, 9 blue); IBS 0 → no brackets
-        s.Members.Add(DcFake("Tomo",        59, 9, 0, assist: true));
+        s.Members.Add(DcFake("Player 1",    60, 1, 1, leader: true, score: 48215, ibs: 4552));
+        s.Members.Add(DcFake("Player 2",    60, 2, 0, me: true, assist: true, score: 123456, ibs: 4675));
+        s.Members.Add(DcFake("Player 3",    58, 5, 1, score: 39870));   // prof 5 = green badge (1/2 red, 9 blue); IBS 0 → no brackets
+        s.Members.Add(DcFake("Player 4",    59, 9, 0, assist: true));
         return s;
     }
 
@@ -54,12 +54,12 @@ public sealed partial class Plugin
             Art = "ui/textures/roid/raid_easy_monster", ArtBg = "ui/textures/roid/raid_easy_bg",
         };
         // 7 members: group 1 slots 1-3, group 2 slots 6-7, group 3 slots 11-12, group 4 empty ("0/5").
-        string[] names = { "Mahiru", "SugarMahiru", "Kirin", "Hikari", "Ren", "Sora", "Mei" };
-        // Profs cover all three badge colours (red 1/2/11, blue 9/12, green 5/13); Ren declined (ready 2) shows the ✕ mark.
+        string[] names = { "Player 1", "Player 2", "Player 3", "Player 4", "Player 5", "Player 6", "Player 7" };
+        // Profs cover all three badge colours (red 1/2/11, blue 9/12, green 5/13); Player 5 declined (ready 2) shows the ✕ mark.
         int[] slots = { 1, 2, 3, 6, 7, 11, 12 }, ready = { 1, 0, 1, 1, 2, 1, 0 }, prof = { 1, 9, 5, 2, 12, 13, 11 };
         for (int i = 0; i < names.Length; i++)
             s.Members.Add(DcFake(names[i], 60, prof[i], ready[i], leader: i == 0, me: i == 1, slot: slots[i],
-                score: i == 4 ? 0 : 30000 + i * 4321, ibs: i == 3 ? 0 : 3980 + i * 137));   // Hikari: IBS 0 → no brackets
+                score: i == 4 ? 0 : 30000 + i * 4321, ibs: i == 3 ? 0 : 3980 + i * 137));   // Player 4: IBS 0 → no brackets
         return s;
     }
 }
