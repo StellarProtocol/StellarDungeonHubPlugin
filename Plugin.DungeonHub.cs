@@ -64,7 +64,6 @@ public sealed partial class Plugin
         _dhHotkey?.Dispose();
         _dhRailButton?.Remove();   // the handle isn't IDisposable — Remove() pulls it and stops re-injection
         DhStopCentring();
-        DhClEnd();
         DhProbeEnd();
         DhReleaseArt();
         _services.ClientState.Logout -= OnDhLogout;
@@ -90,7 +89,6 @@ public sealed partial class Plugin
         t = DhPerfNow();
         _dhWin.SetVisible(true);
         _dhWin.BringToFront();
-        DhClStart();         // [DhCentre] trace (.CentreLog.cs) — before the first centre so its SetRect is logged
         DhStartCentring();
         if (first) DhPerfLog("open.show", t);
         // today's Unstable set: ask the server again (async RPC); the catalog re-reads it on a FULL poll ~1.5 s later
@@ -108,7 +106,6 @@ public sealed partial class Plugin
     {
         _dhShow = false;
         _dhWin.SetVisible(false);
-        if (DhClOn) { _services.Log.Info($"[DhCentre] +{DhClMs:0}ms hidden"); DhClEnd(); }
         DhStopCentring();
         DhReleaseArt();   // no composed raid art kept while hidden (.Art.cs)
     }
@@ -298,8 +295,8 @@ public sealed partial class Plugin
 
     private void OnDhCentreFrame(float _)
     {
-        if (--_dhCentreLeft < 0 || !_dhShow) { DhClStop(_dhShow ? "ticks done" : "hidden"); DhStopCentring(); return; }
-        if (DcUserMoved(_dhWin, _dhPlaced)) { DhClStop("user moved"); DhStopCentring(); return; }   // dragged → the user's now
+        if (--_dhCentreLeft < 0 || !_dhShow) { DhStopCentring(); return; }
+        if (DcUserMoved(_dhWin, _dhPlaced)) { DhStopCentring(); return; }   // dragged → the user's now
         DhCentreNow();
     }
 
@@ -308,13 +305,10 @@ public sealed partial class Plugin
         if (_dhCentreSub || !_dhShow || _dhCentreCw <= 1f) return;
         float cw = _services.Framework.CanvasWidth, ch = _services.Framework.CanvasHeight;
         if (Math.Abs(cw - _dhCentreCw) >= 0.5f || Math.Abs(ch - _dhCentreCh) >= 0.5f)
-        {
-            _services.Log.Info($"[DhCentre] canvas {_dhCentreCw:0}x{_dhCentreCh:0} -> {cw:0}x{ch:0}: re-centring");
-            DhCentreNow("canvas");
-        }
+            DhCentreNow();
     }
 
-    private void DhCentreNow(string path = "burst")
+    private void DhCentreNow()
     {
         if (!_dhShow) return;
         float cw = _services.Framework.CanvasWidth, ch = _services.Framework.CanvasHeight;
@@ -324,10 +318,7 @@ public sealed partial class Plugin
         float h = r.Height > 1f ? r.Height : DhH;
         float x = MathF.Max(0f, MathF.Floor((cw - DhW) / 2f)), y = MathF.Max(0f, MathF.Floor((ch - h) / 2f));
         if (!(Math.Abs(r.X - x) < 0.5f && Math.Abs(r.Y - y) < 0.5f && Math.Abs(r.Width - DhW) < 0.5f))
-        {
             _dhWin.SetRect(new WindowRect(x, y, DhW, h));
-            DhClSet(path, r);   // [DhCentre]
-        }
         _dhPlaced = DcPlacedPos(_dhWin);   // the live (on-screen-clamped) pose, read back after the set
     }
 }
