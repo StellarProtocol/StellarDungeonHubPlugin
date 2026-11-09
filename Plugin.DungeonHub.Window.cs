@@ -253,7 +253,10 @@ public sealed partial class Plugin
             DcBold(() => DhGroupHeader(i), MutedColor, DhFsTiny),
         }, Gap: 0.01f)),
         new ConditionalElement(() => DhAt(i) is { Unstable: true }, DhListRow(i, unstable: true), DhListRow(i, unstable: false)),
-        new SpacerElement(0f, DhRowPitchPad),
+        // No trailing pad after the LAST visible slot: it is invisible but counts toward content height. Measured
+        // 2026-11-09 (1 Unstable + 6 dungeons): content 707.7 px vs the 706 px viewport (handle 704.3/706) -> the
+        // AutoHide scrollbar showed and the framework treated the list as scrollable (blocking window drag there).
+        new ConditionalElement(() => i < Math.Min(DhListSlots, DhList.Count) - 1, new SpacerElement(0f, DhRowPitchPad)),
     }, Gap: 0.01f);
 
     // One 84 px Tile row: art thumb · bold name over a muted sub-line. Selected = accent outline + a stronger accent
