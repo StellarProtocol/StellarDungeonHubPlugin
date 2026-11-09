@@ -3,7 +3,7 @@ namespace Stellar.DungeonHub;
 // Dungeons hub — the catalog half of the poll chunk (Plugin.DungeonHub.Lua.cs DhPollChunk splices it in after the
 // live T / M records, only on a FULL poll): the E / V records of every tab. Split out of .Lua.cs for the 500-line gate.
 // It runs INSIDE the poll's pcall'd function, so it sees the poll's locals (rec, b, try, funcOn, condOk, canMatch,
-// counter, DT, MT, MAP, TM, hvm, sid, out, RS). ⚠️ A C# @"…" verbatim string: no double quote anywhere in the Lua,
+// counter, ibsOf, DT, MT, MAP, TM, hvm, sid, out, RS). ⚠️ A C# @"…" verbatim string: no double quote anywhere in the Lua,
 // comments included (one ends the string — CS1010 storm, Dungeon-Access-Hub.md §8).
 public sealed partial class Plugin
 {
@@ -100,7 +100,7 @@ public sealed partial class Plugin
             local sok, why = condOk(d.SingleAiCondition)
             local fc = firstClear(r.DungeonId, d)
             rec('V', key, star, r.DungeonId, 0, star == 1 and 'Normal' or 'Hard', b(on), d.RecommendFightValue, b((d.SingleModeDungeonId or 0) ~= 0), b(sok), why,
-              b(canMatch(r.DungeonId, 0)), 'First clear', fc == 1 and 'Reward ready' or fc == 2 and 'Claimed' or '', 0, r.Background, '', star, '', fc)
+              b(canMatch(r.DungeonId, 0)), 'First clear', fc == 1 and 'Reward ready' or fc == 2 and 'Claimed' or '', 0, r.Background, '', star, '', fc, ibsOf(d))
           end
         end
       end
@@ -155,7 +155,7 @@ public sealed partial class Plugin
           local label = nDiff == 1 and 'Normal' or ({ 'Easy', 'Hard', 'Nightmare' })[diff]
           rows[#rows + 1] = { 'V', key, diff - 1, r.DungeonId, 0, label, b(on), d.RecommendFightValue or 0,
             b((d.SingleAiMode or 0) ~= 0), b(sok), why, b(canMatch(r.DungeonId, nil)), 'Rewards left', cval, b(lim > 0 and rem == 0),
-            r.MonsterShowTexture or '', r.DiffBgTexture or '', ({ 1, 2, 4 })[diff] }
+            r.MonsterShowTexture or '', r.DiffBgTexture or '', ({ 1, 2, 4 })[diff], '', -1, ibsOf(d) }
         end
       end
       if rcur[gid] or anyOn then

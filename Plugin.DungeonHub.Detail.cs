@@ -112,10 +112,11 @@ public sealed partial class Plugin
         DhTile(() => L("dh.tile.recommended"), () => DhCurLevel switch
             {
                 { RecText.Length: > 0 } l => l.RecText,
-                { Rec: > 0 } l => DhNum(l.Rec),
+                { Rec: > 0 } l => DhAsIbs(_dhRecTxt, l.Rec, l.RecIbs),
                 _ => "—",
             }, () => TextColor(), DhThirdW),
-        DhTile(() => L("dh.tile.yourScore"), () => _dhLive.MyScore > 0 ? DhNum(_dhLive.MyScore) : "—", DhScoreColor, DhThirdMidW),
+        DhTile(() => L("dh.tile.yourScore"), () => _dhLive.MyScore > 0 ? DhAsIbs(_dhMyTxt, _dhLive.MyScore, _dhLive.MyIbs) : "—",
+               DhScoreColor, DhThirdMidW),
         DhTile(() => DhCurLevel?.CounterKey is { Length: > 0 } k ? k : L("dh.word.rewardsLeft"),
                () => DhCurLevel?.TileVal is { Length: > 0 } v ? v : "—",
                () => DhCurLevel switch
@@ -139,6 +140,23 @@ public sealed partial class Plugin
     }, Gap: 0.01f);
 
     private static string DhNum(int v) => v.ToString("N0", CultureInfo.InvariantCulture);
+
+    // "AS (IBS)" = "47,590 (1,970)" (ability score, then Illusion-Breaking Strength), Dungeon Confirm's DcScoreText look:
+    // the element colour draws the AS (Your score keeps its green / amber there) and an inline opaque <color> draws the
+    // bracket one shade fainter — the tile's normal Text ink 40 % toward the tile fill (DcTile), so it never follows the
+    // score colour. No IBS (0: out of season / no SeasonLv[3] / not read) → the AS alone. The value Func runs every
+    // frame, so each tile caches its string keyed on (AS, IBS, ink): a new value or a theme change rebuilds it.
+    private sealed class DhAsIbsCache { public int As = int.MinValue, Ibs; public ColorRgba Ink; public string Text = ""; }
+    private readonly DhAsIbsCache _dhRecTxt = new(), _dhMyTxt = new(), _dhGhRecTxt = new();
+
+    private string DhAsIbs(DhAsIbsCache c, int score, int ibs)
+    {
+        var ink = Mix(TextColor(), DcTile(), 0.4f);
+        if (c.As == score && c.Ibs == ibs && c.Ink == ink) return c.Text;
+        c.As = score; c.Ibs = ibs; c.Ink = ink;
+        var s = DhNum(score);
+        return c.Text = ibs > 0 ? s + " <color=#" + DcHex(ink) + ">(" + DhNum(ibs) + ")</color>" : s;
+    }
 
     // Your score: green when it reaches the level's recommendation, amber below it (muted with nothing to compare).
     private ColorRgba DhScoreColor()
@@ -202,7 +220,8 @@ public sealed partial class Plugin
             new CellElement(new ColumnElement(new HudElement[]
             {
                 new TextElement(label, Color: () => MutedColor(), NoWrap: true, FontSize: DhFsSub) { RichEmoji = true, Ellipsize = true },
-                new TextElement(value, Color: () => valueColor(), NoWrap: true, FontSize: DhFsBody) { Bold = true, Ellipsize = true },
+                // RichEmoji: the "AS (IBS)" values carry an inline <color> tag (DhAsIbs)
+                new TextElement(value, Color: () => valueColor(), NoWrap: true, FontSize: DhFsBody) { RichEmoji = true, Bold = true, Ellipsize = true },
             }, Gap: DcS(1f)), Width: w - 2f * DcSE(8f)),
             new SpacerElement(DcSE(8f), 0f),
         }, Gap: 0.01f))

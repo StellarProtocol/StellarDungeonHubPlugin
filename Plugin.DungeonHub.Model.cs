@@ -8,17 +8,19 @@ namespace Stellar.DungeonHub;
 //
 // Records (fields joined by US = char 31, records by RS = char 30, the Dungeon Confirm separators):
 //   T  live: inTeam, leader, count, max, matchType, matchDungeon, matchDiff, matchAct, elapsedSec, matchName,
-//      matchDiffName, inDungeon, myScore, openState
+//      matchDiffName, inDungeon, myScore, openState [, myIbs (live AttrSeasonStrength)]
 //   E  list entry: tab, key, name, art, artBg, locked, sub, cap, group, masterId, masterCount, masterMax, masterArt,
 //      funcId, counterKey, counterVal, counterZero, canMatch, matchActId [, unstable, title, masterOn]
 //   V  difficulty of an entry (hero 1 Normal / 2 Hard, an Unstable entry only 0, raid 0 Easy / 1 Hard / 2 Nightmare, a
 //      Backtrack raid only 0): key, index, dungeonId, diff, label, unlocked, rec, hasSolo, soloOk, soloWhy, match,
 //      counterKey, counterVal, counterZero, art, artBg, kind (hero star 1/2, raid 1/2/4, Unstable 8)
 //      [, recText (Unstable: the game's text instead of rec), firstClear (-1 n/a, 0 none, 1 ready, 2 claimed)]
+//      [, recIbs (the row's recommended IBS = SeasonLv[3] when in season, else 0; raid rows pad recText/firstClear)]
 //   M  one Master level of the SELECTED hero dungeon: diff, dungeonId, label, unlocked, rec, hasSolo, soloOk, soloWhy,
-//      match, counterKey, counterVal, counterZero, cleared (diff <= GetMasterDungeonMaxDiff)
+//      match, counterKey, counterVal, counterZero, cleared (diff <= GetMasterDungeonMaxDiff) [, recIbs (its MT row)]
 //   W  World Boss: open, left, before, opensText, bossName, art, bossCfgId, haveInfo, log (.WorldBoss.cs)
-//   G  Guild Hunt: inGuild, open, left, before, actRem, actLim, art, (id, rec, rem, lim) × Normal/Hard (.GuildHunt.cs)
+//   G  Guild Hunt: inGuild, open, left, before, actRem, actLim, art, (id, rec, rem, lim) × Normal/Hard, recIbs × 2
+//      (.GuildHunt.cs)
 //   C  Bureau Commissions: haveQuest, acceptLeft, total, cap, resetSec, resetHow, n, (id, name, area, done, dungeonId) × n
 //      (.Commissions.cs)
 // E/V come only with a FULL poll (catalog, every DhFullEvery polls or on demand); T and M come with every poll.
@@ -33,6 +35,7 @@ public sealed partial class Plugin
     private sealed class DhLevel
     {
         public int DungeonId, Diff, Rec, Kind;   // Diff = Master difficulty (0 for Normal/Hard and raids); Kind 8 = Unstable
+        public int RecIbs;                       // recommended Illusion-Breaking Strength (0 = none: the tile shows the AS alone)
         public int FirstClear = -1;              // hero Normal/Hard: 0 no first-clear reward, 1 ready, 2 claimed; -1 n/a
         public string Label = "", SoloWhy = "", CounterKey = "", CounterVal = "", Art = "", ArtBg = "", RecText = "";
         public string SubText = "", TileVal = "";   // list sub-line / info-tile value, built once at parse (DhCounterText)
@@ -56,7 +59,7 @@ public sealed partial class Plugin
     private sealed class DhLiveState
     {
         public bool InTeam, Leader, InDungeon;
-        public int Count, Max = 5, MatchType, MatchDungeon, MatchDiff, MatchAct, MyScore;
+        public int Count, Max = 5, MatchType, MatchDungeon, MatchDiff, MatchAct, MyScore, MyIbs;
         public double Elapsed, ElapsedAt;   // seconds matching at the poll + the TimeNow of that poll
         public string MatchName = "", MatchDiffName = "", OpenState = "";
         public bool Matching => MatchType != 0;
@@ -85,6 +88,7 @@ public sealed partial class Plugin
                         MatchType = DcInt(f[5]), MatchDungeon = DcInt(f[6]), MatchDiff = DcInt(f[7]), MatchAct = DcInt(f[8]),
                         Elapsed = DcInt(f[9]), ElapsedAt = DcNow, MatchName = f[10], MatchDiffName = DhWord(f[11]),
                         InDungeon = f[12] == "1", MyScore = DcInt(f[13]), OpenState = f[14],
+                        MyIbs = f.Length > 15 ? DcInt(f[15]) : 0,
                     };
                     break;
                 case "E" when f.Length >= 20:
@@ -121,6 +125,7 @@ public sealed partial class Plugin
                     };
                     if (f.Length > 18) lv.RecText = f[18];
                     if (f.Length > 19) lv.FirstClear = DcInt(f[19], -1);
+                    if (f.Length > 20) lv.RecIbs = DcInt(f[20]);
                     if (lv.FirstClear >= 0)
                     {
                         // Normal / Hard: no reward counter in the game — the first-clear reward, like the hero page
@@ -146,6 +151,7 @@ public sealed partial class Plugin
                         CounterKey = DhWord(f[10]), CounterVal = DhWord(f[11]), CounterZero = f[12] == "1", Cleared = f[13] == "1", Kind = 4,
                     };
                     lv.TileVal = lv.CounterVal;   // "First clear": Cleared / Reward ready, never a count
+                    if (f.Length > 14) lv.RecIbs = DcInt(f[14]);
                     _dhMaster.Add(lv);
                     break;
                 }

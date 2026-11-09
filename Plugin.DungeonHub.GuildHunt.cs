@@ -22,7 +22,8 @@ namespace Stellar.DungeonHub;
 //   counter the page's own raw read: CounterTable.Limit - CharSerialize.counterList.counterMap[id].counter.
 //   fallback unexpected chunk data, or a non-zero server code → union:EnterUnionSceneHunt() (walks / teleports to the hunt
 //           NPC in the guild scene; refuses with tips 1000593/1000594/100124/1000555, union_vm.lua:1555-1592). Logged.
-// G record (every poll, after W): inGuild, open, left, before, actRem, actLim, art, (id, rec, rem, lim) × 2.
+// G record (every poll, after W): inGuild, open, left, before, actRem, actLim, art, (id, rec, rem, lim) × 2,
+//   recIbs × 2 (Normal, Hard: the row's SeasonLv[3] via the poll's ibsOf, 0 = none → the tile shows the AS alone).
 public sealed partial class Plugin
 {
     private const int DhGhFunc = 500151;
@@ -35,7 +36,7 @@ public sealed partial class Plugin
         public int Left, Before, ActRem, ActLim;
         public double At;                      // DcNow of the poll (the countdown ticks locally from there)
         public string Art = "";
-        public readonly int[] Ids = new int[2], Rec = new int[2], Rem = new int[2], Lim = new int[2];
+        public readonly int[] Ids = new int[2], Rec = new int[2], Rem = new int[2], Lim = new int[2], Ibs = new int[2];
     }
 
     private DhGhState? _dhGh;
@@ -56,6 +57,7 @@ public sealed partial class Plugin
         {
             g.Ids[i] = DcInt(f[8 + 4 * i]); g.Rec[i] = DcInt(f[9 + 4 * i]);
             g.Rem[i] = DcInt(f[10 + 4 * i]); g.Lim[i] = DcInt(f[11 + 4 * i]);
+            if (f.Length > 16 + i) g.Ibs[i] = DcInt(f[16 + i]);
         }
         _dhGh = g;
         string sig = $"guild={g.InGuild} open={g.Open} ids={g.Ids[0]},{g.Ids[1]} rewards={g.ActRem}/{g.ActLim} " +
@@ -137,7 +139,7 @@ public sealed partial class Plugin
 
     private HudElement DhGhTiles() => new RowElement(new HudElement[]
     {
-        DhGhTile(() => L("dh.tile.recommended"), () => _dhGh is { } g && g.Rec[_dhGhDiff] > 100 ? DhNum(g.Rec[_dhGhDiff]) : "—",
+        DhGhTile(() => L("dh.tile.recommended"), () => _dhGh is { } g && g.Rec[_dhGhDiff] > 100 ? DhAsIbs(_dhGhRecTxt, g.Rec[_dhGhDiff], g.Ibs[_dhGhDiff]) : "—",
             () => TextColor(), null, DhThirdW),
         new ConditionalElement(() => DhGhStartsIn().Length > 0 && DhCur is { Locked: false },
             DhGhTile(() => L("dh.tile.status"), () => L("dh.st.closed"), () => DhAmber, DhGhStartsIn, DhThirdMidW),
@@ -167,7 +169,8 @@ public sealed partial class Plugin
         var lines = new System.Collections.Generic.List<HudElement>
         {
             new TextElement(label, Color: () => MutedColor(), NoWrap: true, FontSize: DhFsSub) { RichEmoji = true, Ellipsize = true },
-            new TextElement(value, Color: () => valueColor(), NoWrap: true, FontSize: DhFsBody) { Bold = true, Ellipsize = true },
+            // RichEmoji: Recommended's "AS (IBS)" carries an inline <color> tag (Detail.cs DhAsIbs)
+            new TextElement(value, Color: () => valueColor(), NoWrap: true, FontSize: DhFsBody) { RichEmoji = true, Bold = true, Ellipsize = true },
         };
         if (sub != null)
             lines.Add(new TextElement(sub, Color: () => MutedColor(), NoWrap: true, FontSize: DhFsTiny) { RichEmoji = true, Ellipsize = true });
@@ -338,6 +341,7 @@ public sealed partial class Plugin
       pcall(function()
         for _, v in ipairs(Z.UnionActivityConfig.HuntActivityId) do if v[2] == UH then ids[#ids + 1] = v[1] end end
       end)
+      local ibs = { 0, 0 }
       for i = 1, 2 do
         local id = ids[i] or 0
         local row = id > 0 and DT.GetRow(id, true) or nil
@@ -345,7 +349,10 @@ public sealed partial class Plugin
         local cid = id > 0 and try(function() return uvm:GetDungeonCounterID(id) end, 0) or 0
         if cid > 0 then rem, lim = cnt(cid) end
         f[#f + 1] = id f[#f + 1] = row and row.RecommendFightValue or 0 f[#f + 1] = rem f[#f + 1] = lim
+        ibs[i] = ibsOf(row)
       end
+      -- recommended IBS per difficulty AFTER the four-field blocks, so the older layout's indices stay put
+      f[#f + 1] = ibs[1] f[#f + 1] = ibs[2]
       rec(table.unpack(f))
     end)
 ";
