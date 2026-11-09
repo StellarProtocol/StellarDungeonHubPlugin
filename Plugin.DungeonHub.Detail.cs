@@ -115,7 +115,7 @@ public sealed partial class Plugin
                 { Rec: > 0 } l => DhAsIbs(_dhRecTxt, l.Rec, l.RecIbs),
                 _ => "—",
             }, () => TextColor(), DhThirdW),
-        DhTile(() => L("dh.tile.yourScore"), () => _dhLive.MyScore > 0 ? DhAsIbs(_dhMyTxt, _dhLive.MyScore, _dhLive.MyIbs) : "—",
+        DhTile(() => L("dh.tile.yourScore"), () => _dhLive.MyScore > 0 ? DhAsIbs(_dhMyTxt, _dhLive.MyScore, _dhLive.MyIbs, DhIbsColor()) : "—",
                DhScoreColor, DhThirdMidW),
         DhTile(() => DhCurLevel?.CounterKey is { Length: > 0 } k ? k : L("dh.word.rewardsLeft"),
                () => DhCurLevel?.TileVal is { Length: > 0 } v ? v : "—",
@@ -144,14 +144,16 @@ public sealed partial class Plugin
     // "AS (IBS)" = "47,590 (1,970)" (ability score, then Illusion-Breaking Strength), Dungeon Confirm's DcScoreText look:
     // the element colour draws the AS (Your score keeps its green / amber there) and an inline opaque <color> draws the
     // bracket one shade fainter — the tile's normal Text ink 40 % toward the tile fill (DcTile), so it never follows the
-    // score colour. No IBS (0: out of season / no SeasonLv[3] / not read) → the AS alone. The value Func runs every
-    // frame, so each tile caches its string keyed on (AS, IBS, ink): a new value or a theme change rebuilds it.
+    // score colour. Your score passes its own bracket colour instead (DhIbsColor: green / amber vs the level's recommended
+    // IBS, independent of the AS verdict); null keeps the faint shade. No IBS (0: out of season / no SeasonLv[3] / not
+    // read) → the AS alone. The value Func runs every frame, so each tile caches its string keyed on (AS, IBS, bracket
+    // ink): a new value, a theme change or a level / difficulty pick that flips the IBS verdict rebuilds it.
     private sealed class DhAsIbsCache { public int As = int.MinValue, Ibs; public ColorRgba Ink; public string Text = ""; }
     private readonly DhAsIbsCache _dhRecTxt = new(), _dhMyTxt = new(), _dhGhRecTxt = new();
 
-    private string DhAsIbs(DhAsIbsCache c, int score, int ibs)
+    private string DhAsIbs(DhAsIbsCache c, int score, int ibs, ColorRgba? bracket = null)
     {
-        var ink = Mix(TextColor(), DcTile(), 0.4f);
+        var ink = bracket ?? Mix(TextColor(), DcTile(), 0.4f);
         if (c.As == score && c.Ibs == ibs && c.Ink == ink) return c.Text;
         c.As = score; c.Ibs = ibs; c.Ink = ink;
         var s = DhNum(score);
@@ -164,6 +166,15 @@ public sealed partial class Plugin
         var l = DhCurLevel;
         if (l == null || l.Rec <= 0 || _dhLive.MyScore <= 0) return TextColor();
         return _dhLive.MyScore >= l.Rec ? DhGreen : DhAmber;
+    }
+
+    // Your score's IBS bracket: the same green / amber, judged on its own against the level's recommended IBS. No
+    // recommended IBS (out of season / not read) or no live IBS → null = DhAsIbs' faint shade.
+    private ColorRgba? DhIbsColor()
+    {
+        var l = DhCurLevel;
+        if (l == null || l.RecIbs <= 0 || _dhLive.MyIbs <= 0) return null;
+        return _dhLive.MyIbs >= l.RecIbs ? DhGreen : DhAmber;
     }
 
     // ── difficulty chips: 44 px round, bold label; selected = 25 % wash of its colour + a 60 % ring ──────────────────
