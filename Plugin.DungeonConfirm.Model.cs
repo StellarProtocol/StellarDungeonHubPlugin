@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using Stellar.Abstractions.Domain;
 
 namespace Stellar.DungeonHub;
 
@@ -13,7 +14,8 @@ namespace Stellar.DungeonHub;
 //      (twenty = the 4-group layout, chosen by the TEAM — Lua.cs "layout"; cap = the dungeon's max players, 0 = unknown;
 //       raidContent = that dungeon is a raid → the 4-group panel says RAID, else PARTY — Lua.cs "raidContent")
 //   A  affixId  name  iconPath                                                  (one per affix)
-//   M  charId  name  level  professionId  ai(0|1)  assist(0|1)  ready(0 wait|1 ready|2 declined)  slot20  leader  me  fightPoint(0 = none)
+//   M  charId  name  level  professionId  ai(0|1)  assist(0|1)  ready(0 wait|1 ready|2 declined)  slot20  leader  me  fightPoint(0 = none)  ibs(0 = none)
+//      (ibs = Illusion-Breaking Strength, shown "AS (IBS)"; appended last, so an older 12-field record still parses)
 public sealed partial class Plugin
 {
     private const char DcUs = '\x1f', DcRs = '\x1e';
@@ -22,10 +24,11 @@ public sealed partial class Plugin
     {
         public string CharId = "", Name = "";
         // Ready: 0 waiting, 1 ready, 2 declined (wire), 3 no answer (C# only, DcMarkTimeouts). Slot: 1..20 raid group
-        // slot, 0 = none. Score: ability score, 0 = unknown.
-        public int    Level, Prof, Ready, Slot, Score;
+        // slot, 0 = none. Score: ability score, Ibs: Illusion-Breaking Strength — 0 = unknown for both.
+        public int    Level, Prof, Ready, Slot, Score, Ibs;
         public bool   Ai, Assist, Leader, Me;
-        public string? ScoreText;   // DcScoreText cache
+        public string? ScoreText;    // DcScoreText cache …
+        public ColorRgba ScoreInk;   // … and the IBS ink it was composed with (theme-live: a theme change rebuilds it)
     }
 
     private sealed class DcAffix { public int Id; public string Name = "", Icon = "", Label = ""; }
@@ -78,6 +81,7 @@ public sealed partial class Plugin
                         CharId = f[1], Name = f[2], Level = DcInt(f[3]), Prof = DcInt(f[4]), Ai = f[5] == "1",
                         Assist = f[6] == "1", Ready = DcInt(f[7]), Slot = DcInt(f[8]), Leader = f[9] == "1", Me = f[10] == "1",
                         Score = f.Length >= 12 ? DcInt(f[11]) : 0,
+                        Ibs   = f.Length >= 13 ? DcInt(f[12]) : 0,
                     });
                     break;
             }

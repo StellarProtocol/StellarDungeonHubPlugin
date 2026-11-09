@@ -12,8 +12,8 @@ namespace Stellar.DungeonHub;
 // Width: panel inner 1000 − 32 = 968; the two group columns split it around a 12 gap → 478 each (even, so nothing
 // centres on a half pixel). Both columns are FIXED 478 cells and every row an exact 478 bubble (Dc5RowW note in
 // .Window.cs): weighted cells sized to content gave 532 vs 422 px columns in the 2026-11-06 raid. A row = 6 + icon 32 +
-// 12 + name + 12 + score 60 + 12 + mark 32 + 6 → the name cell is a fixed 306 (a 16-glyph bold-21 name ≈ 180, so
-// the small ability score costs no name). Every group always shows 5 rows; an unfilled slot is DcEmptyRow.
+// 12 + name + 12 + score 128 + 12 + mark 32 + 6 → the name cell is a fixed 238 (a 16-glyph bold-21 name ≈ 180, so
+// the small "AS (IBS)" score still costs no name). Every group always shows 5 rows; an unfilled slot is DcEmptyRow.
 public sealed partial class Plugin
 {
     private HudElement BuildDcRaidRoot() => new ColumnElement(new HudElement[]

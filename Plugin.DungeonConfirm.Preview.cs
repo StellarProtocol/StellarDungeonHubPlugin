@@ -7,8 +7,8 @@ namespace Stellar.DungeonHub;
 // (ChallengeHeroDungeonTable 6007-style key art / RaidDungeonTable 13001 MonsterShowTexture over its DiffBgTexture) so
 // the crop and the raid compose are exercised; class icons use real profession ids; affix ids/icons are AffixTable rows.
 // SugarMahiru = me (accent outline, no YOU tag) + ASSIST (the longest name+tag case, cut at 552 px) with a 6-digit
-// score; Tomo = score 0 → "—" (no score sent). Both previews leave slots empty (4 of 5 / 7 of 20 over groups 1-3) so
-// the placeholder rows show.
+// score "123,456 (4,675)"; Kirin = score without IBS → no brackets; Tomo = score 0 → "—" (no score sent). Both
+// previews leave slots empty (4 of 5 / 7 of 20 over groups 1-3) so the placeholder rows show.
 public sealed partial class Plugin
 {
     private void DcStartPreview(bool raid)
@@ -27,8 +27,8 @@ public sealed partial class Plugin
     }
 
     private static DcMember DcFake(string name, int lvl, int prof, int ready, bool leader = false, bool me = false,
-        bool assist = false, int slot = 0, int score = 0) =>
-        new() { CharId = name, Name = name, Level = lvl, Prof = prof, Ready = ready, Leader = leader, Me = me, Assist = assist, Slot = slot, Score = score };
+        bool assist = false, int slot = 0, int score = 0, int ibs = 0) =>
+        new() { CharId = name, Name = name, Level = lvl, Prof = prof, Ready = ready, Leader = leader, Me = me, Assist = assist, Slot = slot, Score = score, Ibs = ibs };
 
     private static DcSnap DcPreviewFive()
     {
@@ -39,9 +39,9 @@ public sealed partial class Plugin
         };
         s.Affixes.Add(new DcAffix { Id = 102, Name = "Void Corruption Afterimage", Icon = "ui/atlas/affix/com_affix_s1_flux_shadow1" });
         s.Affixes.Add(new DcAffix { Id = 106, Name = "Illusion Invasion", Icon = "ui/atlas/affix/com_affix_s1_flux_meteor1" });
-        s.Members.Add(DcFake("Mahiru",      60, 1, 1, leader: true, score: 48215));
-        s.Members.Add(DcFake("SugarMahiru", 60, 2, 0, me: true, assist: true, score: 123456));
-        s.Members.Add(DcFake("Kirin",       58, 5, 1, score: 39870));   // prof 5 = green badge (1/2 red, 9 blue)
+        s.Members.Add(DcFake("Mahiru",      60, 1, 1, leader: true, score: 48215, ibs: 4552));
+        s.Members.Add(DcFake("SugarMahiru", 60, 2, 0, me: true, assist: true, score: 123456, ibs: 4675));
+        s.Members.Add(DcFake("Kirin",       58, 5, 1, score: 39870));   // prof 5 = green badge (1/2 red, 9 blue); IBS 0 → no brackets
         s.Members.Add(DcFake("Tomo",        59, 9, 0, assist: true));
         return s;
     }
@@ -59,7 +59,7 @@ public sealed partial class Plugin
         int[] slots = { 1, 2, 3, 6, 7, 11, 12 }, ready = { 1, 0, 1, 1, 2, 1, 0 }, prof = { 1, 9, 5, 2, 12, 13, 11 };
         for (int i = 0; i < names.Length; i++)
             s.Members.Add(DcFake(names[i], 60, prof[i], ready[i], leader: i == 0, me: i == 1, slot: slots[i],
-                score: i == 4 ? 0 : 30000 + i * 4321));
+                score: i == 4 ? 0 : 30000 + i * 4321, ibs: i == 3 ? 0 : 3980 + i * 137));   // Hikari: IBS 0 → no brackets
         return s;
     }
 }

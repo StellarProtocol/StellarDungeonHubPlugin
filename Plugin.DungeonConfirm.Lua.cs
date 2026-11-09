@@ -199,6 +199,9 @@ end)");
     //          CharSerialize.fightPoint.totalFightPoint (recommend_fightvalue_vm.lua:20, live). Match players carry NO
     //          score (MatchPlayerShowInfo = name/gender/body/level/avatar/zone only, stru_match_player_show_info.proto:9)
     //          → only me + players also in my team get one; bots/AI and the rest send 0 → "—".
+    //   Illusion-Breaking Strength (IBS, shown bracketed after the score): team members' socialData.userAttrData
+    //          .seasonStrength (same UserAttrData object as fightPoint); me = PlayerEnt:GetLuaAttr(AttrSeasonStrength=11440)
+    //          .Value (both verified live 2026-11-09). Same coverage as the score: match strangers / bots → 0 → no brackets.
     //   audio: the native view plays that row's MatchAudio once per open (:231/:251/:100). We DON'T — our own cue
     //          (embedded WAVs via winmm, .Sound.cs) replaces it, so it is heard even with the game muted / unfocused.
     private const string DcPollChunk = DcVoteHook +
@@ -243,6 +246,14 @@ end)");
     local function memFp(mem)
       local okF, v = pcall(function() return mem.socialData.userAttrData.fightPoint end)
       return okF and v or 0
+    end
+    local function myIbs()
+      local okI, v = pcall(function() return Z.EntityMgr.PlayerEnt:GetLuaAttr(Z.PbAttrEnum('AttrSeasonStrength')).Value end)
+      return okI and tonumber(v) or 0
+    end
+    local function memIbs(mem)
+      local okI, v = pcall(function() return mem.socialData.userAttrData.seasonStrength end)
+      return okI and tonumber(v) or 0
     end
     local TM = Z.TableMgr
     local vd = st.viewData or {}
@@ -349,10 +360,10 @@ end)");
     end
     if match then
       local md = Z.DataMgr.Get('match_data')
-      local teamFp = {}
+      local teamFp, teamIbs = {}, {}
       pcall(function()
         for _, mem in pairs(Z.DataMgr.Get('team_data').TeamInfo.members or {}) do
-          if not mem.isAi then teamFp[mem.charId] = memFp(mem) end
+          if not mem.isAi then teamFp[mem.charId] = memFp(mem) teamIbs[mem.charId] = memIbs(mem) end
         end
       end)
       for _, mi in pairs(md.matchPlayerInfo_ or {}) do
@@ -364,9 +375,11 @@ end)");
           if bot then name = bot.Name prof = bot.Weapon[1] end
         elseif show then name = show.name lvl = show.level end
         local r = (mi.readyStatus == E.RedayType.Ready) and 1 or ((mi.readyStatus == E.RedayType.UnReady) and 2 or 0)
-        local fp = 0
-        if not mi.isBot then if mi.charId == myId then fp = myFp() else fp = teamFp[mi.charId] or 0 end end
-        rec('M', mi.charId, name, lvl, prof, b(mi.isBot), b((not mi.isBot) and mi.isAssist), r, 0, 0, b(mi.charId == myId), fp)
+        local fp, ibs = 0, 0
+        if not mi.isBot then
+          if mi.charId == myId then fp = myFp() ibs = myIbs() else fp = teamFp[mi.charId] or 0 ibs = teamIbs[mi.charId] or 0 end
+        end
+        rec('M', mi.charId, name, lvl, prof, b(mi.isBot), b((not mi.isBot) and mi.isAssist), r, 0, 0, b(mi.charId == myId), fp, ibs)
       end
     else
       local agree = {}
@@ -392,9 +405,15 @@ end)");
         if v == true then r = 1 elseif v == false then r = 2 end
         local slot = 0
         if twenty then pcall(function() slot = Z.VMMgr.GetVM('team').GetTeamTwentyIndex(cid) or 0 end) end
-        local fp = 0
-        if not mem.isAi then fp = memFp(mem) if cid == myId then local v = myFp() if v and v > 0 then fp = v end end end
-        rec('M', cid, name, lvl, prof, b(mem.isAi), b(assist), r, slot, b(isLeader), b(cid == myId), fp)
+        local fp, ibs = 0, 0
+        if not mem.isAi then
+          fp = memFp(mem) ibs = memIbs(mem)
+          if cid == myId then
+            local v = myFp() if v and v > 0 then fp = v end
+            local w = myIbs() if w and w > 0 then ibs = w end
+          end
+        end
+        rec('M', cid, name, lvl, prof, b(mem.isAi), b(assist), r, slot, b(isLeader), b(cid == myId), fp, ibs)
       end
     end
     return table.concat(out, RS)

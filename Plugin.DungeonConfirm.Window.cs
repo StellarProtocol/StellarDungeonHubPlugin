@@ -58,9 +58,9 @@ public sealed partial class Plugin
     private static readonly float DcSp4 = DcSE(4f), DcSp6 = DcSE(6f), DcSp7 = DcSE(7f), DcSp8 = DcSE(8f);   // 6 · 10 · 12 · 12
     private static readonly float DcSp10 = DcSE(10f), DcTimerW = DcSE(52f);                                // 16 · 84
     private static readonly float DcAssistW = DcSE(40f);                                                   // 64
-    // Ability score column (right-aligned, muted): "123,456" regular 19 ≈ 6 digits × 10.5 + comma 5 ≈ 68 → 84; the raid
-    // row's smaller copy (tag 16) ≈ 57 → 60.
-    private static readonly float DcScoreW = DcSE(52f), DcScoreRaidW = DcSE(38f);                          // 84 · 60
+    // Ability score column (right-aligned, muted), "AS (IBS)": "666,666 (6,666)" regular 19 ≈ 10 digits × 10.5 + 2 commas
+    // × 5 + space 5 + brackets 2 × 6 ≈ 132 → 140; the raid row's smaller copy (tag 16) ≈ 132 × 16/19 ≈ 111 → 128.
+    private static readonly float DcScoreW = DcSE(88f), DcScoreRaidW = DcSE(80f);                          // 140 · 128
     private static readonly int   Dc5ArtH = (int)DcSE(122f), DcRArtH = (int)DcSE(156f);                    // 196 · 250
     // Fonts: title 24 · timer 29 · body (names, pill labels) 21 · small (captions, status, chips) 19 · mark 18 · tag 16.
     // Generated ✓/✕ images (Art.cs DcGlyphPng): 16 in a raid mark or a body-size pill label.
@@ -98,8 +98,8 @@ public sealed partial class Plugin
     private static readonly float Dc5RowW = DcAffixRowW;                                                     // 624
     private static readonly float DcRaidColW = 2f * MathF.Floor((DcRW - DcPad - 2f * DcPanelPadX - DcSp8) / 4f);   // 478
     private static readonly float DcRowLead = DcSp4 + DcClassW + DcSp7;                                     // 50
-    private static readonly float Dc5NameW = Dc5RowW - DcRowLead - 2f * DcSp7 - DcScoreW - DcStatusW - DcSp6;   // 334
-    private static readonly float DcRaidNameW = DcRaidColW - DcRowLead - 2f * DcSp7 - DcScoreRaidW - DcStatusH - DcSp4;   // 306
+    private static readonly float Dc5NameW = Dc5RowW - DcRowLead - 2f * DcSp7 - DcScoreW - DcStatusW - DcSp6;   // 278
+    private static readonly float DcRaidNameW = DcRaidColW - DcRowLead - 2f * DcSp7 - DcScoreRaidW - DcStatusH - DcSp4;   // 238
 
     private static readonly ColorRgba DcAmber   = Rgb(0xffcc73);
     private static readonly ColorRgba DcRedWash = Rgb(0xff4d4f, 0.22f);
@@ -412,7 +412,7 @@ public sealed partial class Plugin
 
     // One 42 px Tile row: class icon · name + ASSIST · ability score · status pill. My row: 1 px accent outline — that
     // alone marks me; the "YOU" tag came off both layouts (user, 2026-11-06), so the fixed name cell just gives names room.
-    // Horizontal parts are all even (6+32+12 … 12+84+12+122+10 = 290), so the name cell is even too (624 − 290 = 334;
+    // Horizontal parts are all even (6+32+12 … 12+140+12+122+10 = 346), so the name cell is even too (624 − 346 = 278;
     // "SugarMahiru" bold 21 + ASSIST ≈ 195). Exact 624 wide (Dc5RowW note); an unfilled slot = DcEmptyRow.
     private HudElement DcPartyRow(int i) => new ConditionalElement(() => DcMem(i) != null,
         new BubbleElement(new RowElement(new HudElement[]
@@ -445,10 +445,26 @@ public sealed partial class Plugin
         MaxWidth = rowW,
     };
 
-    // "123,456"; a bot/AI or a player whose score the game didn't send (match strangers) shows "—". Cached per member
-    // (the label Func runs every frame).
-    private static string DcScoreText(DcMember? m) =>
-        m == null ? "" : m.ScoreText ??= m.Ai || m.Score <= 0 ? "—" : m.Score.ToString("N0", CultureInfo.InvariantCulture);
+    // "AS (IBS)" = "66,084 (4,675)" (ability score, then Illusion-Breaking Strength); no IBS → "66,084"; a bot/AI or a
+    // player whose score the game didn't send (match strangers) shows "—". ONE RichEmoji (TMP) text: the element colour
+    // (muted) draws the score and an inline <color> tag draws the bracket one shade fainter — Muted 40 % toward the row
+    // Tile, opaque (an <alpha> tag is TMP-only and would fight the element alpha). Cached per member (the label Func runs
+    // every frame); the ink is theme-live, so the cache also keys on it and a theme change rebuilds the string.
+    private string DcScoreText(DcMember? m)
+    {
+        if (m == null) return "";
+        var ink = Mix(MutedColor(), DcTile(), 0.4f);
+        if (m.ScoreText != null && m.ScoreInk == ink) return m.ScoreText;
+        m.ScoreInk = ink;
+        if (m.Ai || m.Score <= 0) return m.ScoreText = "—";
+        var score = m.Score.ToString("N0", CultureInfo.InvariantCulture);
+        if (m.Ibs <= 0) return m.ScoreText = score;
+        return m.ScoreText = score + " <color=#" + DcHex(ink) + ">(" + m.Ibs.ToString("N0", CultureInfo.InvariantCulture) + ")</color>";
+    }
+
+    private static string DcHex(ColorRgba c) =>
+        ((int)MathF.Round(c.R * 255f)).ToString("x2") + ((int)MathF.Round(c.G * 255f)).ToString("x2")
+        + ((int)MathF.Round(c.B * 255f)).ToString("x2");
 
     // Bold name that ellipsizes (its min width is 0) next to the fixed-width ASSIST tag (min = preferred), so in the cell
     // only the name gives way and the tag stays right after it. No YOU tag: the accent outline marks my row.
