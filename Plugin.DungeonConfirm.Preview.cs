@@ -30,11 +30,12 @@ public sealed partial class Plugin
         bool assist = false, int slot = 0, int score = 0, int ibs = 0) =>
         new() { CharId = name, Name = name, Level = lvl, Prof = prof, Ready = ready, Leader = leader, Me = me, Assist = assist, Slot = slot, Score = score, Ibs = ibs };
 
-    private static DcSnap DcPreviewFive()
+    private DcSnap DcPreviewFive()
     {
         var s = new DcSnap
         {
-            DungeonId = 6007, TotalSec = 30, Title = "Goblin Lair", TypeName = "Master 17", DiffKind = 3,
+            // TypeName: a real entry carries the game's own (already localized) name; the preview uses our catalog's.
+            DungeonId = 6007, TotalSec = 30, Title = "Goblin Lair", TypeName = DhMasterLabel(17), DiffKind = 3,
             Art = "ui/textures/dungeon_textures/dungeon_gebulin_1", KeyLeft = 2,
         };
         s.Affixes.Add(new DcAffix { Id = 102, Name = "Void Corruption Afterimage", Icon = "ui/atlas/affix/com_affix_s1_flux_shadow1" });

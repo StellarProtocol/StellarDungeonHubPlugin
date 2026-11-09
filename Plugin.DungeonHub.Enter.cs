@@ -44,7 +44,7 @@ public sealed partial class Plugin
     private string _dhNotice = "";
     private double _dhNoticeUntil;
     private bool DhNoticeOn => _dhNotice.Length > 0 && DcNow < _dhNoticeUntil;
-    private string DhIdleText() => DhNoticeOn ? _dhNotice : "Not matching";
+    private string DhIdleText() => DhNoticeOn ? _dhNotice : L("dh.bar.notMatching");
     private ColorRgba DhIdleColor() => DhNoticeOn ? DhAmber : MutedColor();
     private void DhSetNotice(string text) { _dhNotice = text; _dhNoticeUntil = DcNow + DhNoticeSec; }
 
@@ -85,7 +85,7 @@ public sealed partial class Plugin
         {
             string why = res.Substring(2).Trim();
             _services.Log.Info($"[DungeonHub] {what}: not sent — {why}");
-            DhSetNotice($"{(solo ? "Solo" : "Party")}: {why}");
+            DhSetNotice(LF(solo ? "dh.notice.solo" : "dh.notice.party", DhReason(why)));
         }
         else if (res.StartsWith("DIALOG", StringComparison.Ordinal))
         {

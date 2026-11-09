@@ -114,25 +114,24 @@ public sealed partial class Plugin
         if (_dc == null) return ("", "", 0, "");
         var s = _dc;
         int waiting = s.Waiting;
-        string key = $"{_dcEnd}|{_dcEndName}|{_dcEndCount}|{waiting}|{_dcConfirmed}|{s.Match}|{s.IAmLeader}|{s.LeaderName}";
+        string key = $"{_dcEnd}|{_dcEndName}|{_dcEndCount}|{waiting}|{_dcConfirmed}|{s.Match}|{s.IAmLeader}|{s.LeaderName}|{_loc.Language}";
         if (key == _dcStatusKey) return _dcStatusCache;
         _dcStatusKey = key;
-        string more = waiting == 1 ? "1 more" : $"{waiting} more";
         _dcStatusCache = _dcEnd switch
         {
             // No edge spaces: DcStatusLine puts a word-gap spacer between non-empty segments (Window.cs header note).
-            DcEnd.Declined  => ("", "Entry cancelled", 1, $"· {_dcEndName} declined"),
-            DcEnd.Cancelled => ("", "Entry cancelled", 1, ""),
+            DcEnd.Declined  => ("", L("dc.s.cancelled"), 1, LF("dc.s.declined", _dcEndName)),
+            DcEnd.Cancelled => ("", L("dc.s.cancelled"), 1, ""),
             // TimedOut (team mode, DcMarkTimeouts): one silent member is named ("You" = me), several are counted.
-            DcEnd.TimedOut when _dcEndName.Length > 0 => ("Time ran out", "", 0, $"· {_dcEndName} didn't answer"),
-            DcEnd.TimedOut when _dcEndCount > 1       => ("Time ran out", "", 0, $"· {_dcEndCount} didn't answer"),
-            DcEnd.TimedOut  => ("Time ran out", "", 0, ""),
-            _ when waiting == 0 => ("", "Everyone is ready", 2, ""),
+            DcEnd.TimedOut when _dcEndName.Length > 0 => (L("dc.s.timeout"), "", 0, LF("dc.s.noAnswer", _dcEndName)),
+            DcEnd.TimedOut when _dcEndCount > 1       => (L("dc.s.timeout"), "", 0, LF("dc.s.noAnswer", _dcEndCount)),
+            DcEnd.TimedOut  => (L("dc.s.timeout"), "", 0, ""),
+            _ when waiting == 0 => ("", L("dc.s.allReady"), 2, ""),
             // The team leader counts as ready from the start (Ready = 1), so test leader before "confirmed".
-            _ when !s.Match && s.IAmLeader => ($"You started entry · waiting for {waiting}", "", 0, ""),
-            _ when _dcConfirmed => ("", "You're ready", 2, $"· waiting for {more}"),
-            _ when s.Match      => ("Match found · confirm to enter", "", 0, ""),
-            _                   => ("Leader", s.LeaderName, 3, "started entry"),
+            _ when !s.Match && s.IAmLeader => (LF("dc.s.leaderWaiting", waiting), "", 0, ""),
+            _ when _dcConfirmed => ("", L("dc.s.youReady"), 2, waiting == 1 ? L("dc.s.waitingMore1") : LF("dc.s.waitingMore", waiting)),
+            _ when s.Match      => (L("dc.s.matchFound"), "", 0, ""),
+            _                   => (L("dc.s.leaderPre"), s.LeaderName, 3, L("dc.s.leaderPost")),
         };
         return _dcStatusCache;
     }

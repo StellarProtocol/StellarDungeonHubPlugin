@@ -45,6 +45,7 @@ public sealed partial class Plugin
                 Category:    WindowCategory.Tools,
                 Style:       WindowPanelStyle.GlassMenu)
             { Draggable = true, Closable = false, StartVisible = false, ShowTitleBar = false,
+              TitleProvider = () => L("dc.set.title"),
               FrameOpacity = DhFrameOpacity,   // settings' custom opacity, null = theme (.WindowOpacity.cs)
               ShouldRender = () => _services.ClientState.Phase == GamePhase.World &&
                                    (_services.ClientState.UiState & GameUIState.Loading) == 0 },
@@ -57,35 +58,34 @@ public sealed partial class Plugin
     private HudElement BuildDcSettingsRoot() => new ColumnElement(new HudElement[]
     {
         DsHeader(),
-        DcPanel(() => "CONFIRM SCREEN", new SpacerElement(0f, 0f),
-            DsToggleRow("Replace the game's confirm screen",
-                "A small window instead of the full-screen entry check, for dungeons, raids and match found.",
+        DcPanel(() => L("dc.set.cap.confirm"), new SpacerElement(0f, 0f),
+            DsToggleRow("dc.set.replace", "dc.set.replace.sub",
                 () => _dcReplace, () => ApplyDcReplace(!_dcReplace)),
             new RowElement(new HudElement[]
             {
-                DsNeutralPill("Preview 5-player", () => DcStartPreview(false), DsHalfW),
-                DsNeutralPill("Preview raid",     () => DcStartPreview(true),  DsHalfW),
+                DsNeutralPill("dc.set.preview5",    () => DcStartPreview(false), DsHalfW),
+                DsNeutralPill("dc.set.previewRaid", () => DcStartPreview(true),  DsHalfW),
             }, Gap: DsGap)),
-        DcPanel(() => "SOUNDS", new SpacerElement(0f, 0f),
+        DcPanel(() => L("dc.set.cap.sounds"), new SpacerElement(0f, 0f),
             // Replace OFF → the "why" line first. A Then/Else pair (the note + row, or the row alone), not a lone
             // Conditional: a hidden Cond still takes a panel gap, which would shift the section while Replace is on.
             new ConditionalElement(() => !_dcReplace,
                 new ColumnElement(new HudElement[]
                 {
-                    new CellElement(DsWrapNote("Sounds play on the replacement screen. Turn it on to use them."), Width: DsInW),
+                    new CellElement(DsWrapNote("dc.set.soundsOff"), Width: DsInW),
                     DsOpenSoundRow(),
                 }, Gap: DcPanelGap),
                 DsOpenSoundRow()),
             DsSoundPicker(tick: false),
-            DsToggleRow("Countdown ticks", "Each second for the last 10 s while you still have to answer", () => _dcSoundTicks,
+            DsToggleRow("dc.set.ticks", "dc.set.ticks.sub", () => _dcSoundTicks,
                 () => SetDcSoundBool("dungeon_confirm_sound_ticks", !_dcSoundTicks, x => { _dcSoundTicks = x; if (!x) DcSoundStopTicks(); }),
                 DsSoundsOn),
             DsSoundPicker(tick: true),
             DsVolumeRow(),
             new RowElement(new HudElement[]
             {
-                DsNeutralPill("Open sounds folder", DcOpenSoundsFolder, DsFolderW, DsSoundsOn),
-                new CellElement(DsWrapNote("Put your own .wav or .mp3 files here, then pick them above."), Width: DsFolderNoteW),
+                DsNeutralPill("dc.set.folder", DcOpenSoundsFolder, DsFolderW, DsSoundsOn),
+                new CellElement(DsWrapNote("dc.set.folder.note"), Width: DsFolderNoteW),
             }, Gap: DsGap)),
         DsWindowPanel(),   // WINDOW: custom opacity (.WindowOpacity.cs)
     }, Gap: DhGap);
@@ -104,13 +104,13 @@ public sealed partial class Plugin
             }, Width: DhHeaderH),
         new CellElement(new ColumnElement(new HudElement[]
         {
-            DcBold(() => "Dungeon Hub Settings", TextColor, DhFsTitle),
+            DcBold(() => L("dc.set.title"), TextColor, DhFsTitle),
             new RowElement(new HudElement[]
             {
-                DcSmall(() => "Confirm screen", MutedColor, DhFsSmall),
+                DcSmall(() => L("dc.set.confirmScreen"), MutedColor, DhFsSmall),
                 DcWordSpace(),   // edge spaces in a run are dropped (.DungeonConfirm.Window.cs header note)
                 // status ink like the chips: On = house status green (contrast-lifted on light themes), Off = muted, never accent
-                DcBold(() => _dcReplace ? "On" : "Off",
+                DcBold(() => L(_dcReplace ? "dc.set.on" : "dc.set.off"),
                     () => _dcReplace ? EnsureContrast(DhGreen, PanelColor(), 4.5f) : MutedColor(), DhFsSmall),
             }, Gap: 0.01f),
         }, Gap: DcS(2f)), Weight: 1f),
@@ -129,20 +129,20 @@ public sealed partial class Plugin
     private ColorRgba DsOffInk() => Mix(PanelColor(), TextColor(), 0.4f);
     private Func<ColorRgba> DsLabelInk(Func<bool>? enabled) => () => enabled == null || enabled() ? TextColor() : MutedColor();
 
-    private HudElement DsOpenSoundRow() => DsToggleRow("Sound when it opens", null, () => _dcSoundOpen,
+    private HudElement DsOpenSoundRow() => DsToggleRow("dc.set.openSound", null, () => _dcSoundOpen,
         () => SetDcSoundBool("dungeon_confirm_sound_open", !_dcSoundOpen, x => _dcSoundOpen = x), DsSoundsOn);
 
     // ── rows ──────────────────────────────────────────────────────────────────────────────────────────────────────
-    // label (+ muted wrapping sub-line) in a fixed cell · the ON/OFF chip pinned right. enabled null = always live.
-    private HudElement DsToggleRow(string label, string? sub, Func<bool> on, Action toggle, Func<bool>? enabled = null)
+    // labelKey (+ muted wrapping subKey line, catalog keys) in a fixed cell · the ON/OFF chip pinned right. enabled null = always live.
+    private HudElement DsToggleRow(string labelKey, string? subKey, Func<bool> on, Action toggle, Func<bool>? enabled = null)
     {
-        HudElement text = DcSmall(() => label, DsLabelInk(enabled), DcFsBody);
-        if (sub != null) text = new ColumnElement(new HudElement[] { text, DsWrapNote(sub) }, Gap: DcS(2f));
+        HudElement text = DcSmall(() => L(labelKey), DsLabelInk(enabled), DcFsBody);
+        if (subKey != null) text = new ColumnElement(new HudElement[] { text, DsWrapNote(subKey) }, Gap: DcS(2f));
         return new RowElement(new HudElement[] { new CellElement(text, Width: DsLabelW), DsChip(on, toggle, enabled) }, Gap: DsGap);
     }
 
-    private TextElement DsWrapNote(string text) =>
-        new(() => text, Color: () => MutedColor(), FontSize: DcFsSmall) { RichEmoji = true };
+    private TextElement DsWrapNote(string key) =>
+        new(() => L(key), Color: () => MutedColor(), FontSize: DcFsSmall) { RichEmoji = true };
 
     // Pill dropdown (Default + the folder's files) · ▶ preview; under it the yellow "can't play" note when needed.
     private HudElement DsSoundPicker(bool tick) => new ColumnElement(new HudElement[]
@@ -156,13 +156,13 @@ public sealed partial class Plugin
             DsPlayButton(() => DcSoundPreview(tick), DsSoundsOn),
         }, Gap: DsGap),
         new ConditionalElement(() => DcSoundProblem(tick).Length > 0,
-            new CellElement(new TextElement(() => $"Can't play {DcSoundProblem(tick)} · using the default sound",
+            new CellElement(new TextElement(() => LF("dc.set.cantPlay", DcSoundProblem(tick)),
                 Color: () => DcAmber, NoWrap: true, FontSize: DcFsSmall) { RichEmoji = true, Ellipsize = true }, Width: DsInW)),
     }, Gap: DcS(4f));
 
     private HudElement DsVolumeRow() => new RowElement(new HudElement[]
     {
-        new CellElement(DcSmall(() => "Volume", () => DsSoundsOn() ? MutedColor() : DsOffInk(), DcFsBody), Width: DsVolLabelW),
+        new CellElement(DcSmall(() => L("dc.set.volume"), () => DsSoundsOn() ? MutedColor() : DsOffInk(), DcFsBody, DsVolLabelW), Width: DsVolLabelW),
         // Enabled = Unity Slider.interactable (framework SliderBinding): no drag while Replace is OFF, same geometry. The
         // SDK can't recolour the track fill, so only the knob takes Unity's disabled tint; the label + value go muted.
         new CellElement(new SliderElement(() => _dcSoundVolume, SetDcSoundVolume, 0f, 100f, DsSoundsOn)
@@ -195,16 +195,16 @@ public sealed partial class Plugin
 
     // ── controls ──────────────────────────────────────────────────────────────────────────────────────────────────
     // enabled null = always live. Disabled = same pill, click + hover gated, disabled fill + ink.
-    private HudElement DsNeutralPill(string label, Action onClick, float w, Func<bool>? enabled = null)
+    private HudElement DsNeutralPill(string labelKey, Action onClick, float w, Func<bool>? enabled = null)
     {
         if (enabled == null)
-            return DhPill(() => label, DcNeutral, () => EnsureContrast(TextColor(), DcNeutral(), 4.5f), onClick, w, DsPillH);
+            return DhPill(() => L(labelKey), DcNeutral, () => EnsureContrast(TextColor(), DcNeutral(), 4.5f), onClick, w, DsPillH);
         var hover = new DcHover();
         Func<ColorRgba> fill = () => enabled() ? DcNeutral() : DsOffFill(DcNeutral());
         return new CellElement(new BubbleElement(new SelectableElement(new RowElement(new HudElement[]
             {
                 new SpacerElement(0f, DsPillH),
-                DcDrop(DcBold(() => label, () => enabled() ? EnsureContrast(TextColor(), DcNeutral(), 4.5f) : DsOffInk(),
+                DcDrop(DcBold(() => L(labelKey), () => enabled() ? EnsureContrast(TextColor(), DcNeutral(), 4.5f) : DsOffInk(),
                     DhFsSmall, w, TextAlign.Center)),
             }, Gap: 0.01f, Justify: RowJustify.Center), OnClick: () => { if (enabled()) onClick(); })
             { Bare = true, OnHover = o => hover.On = o })
@@ -226,9 +226,9 @@ public sealed partial class Plugin
         Func<ColorRgba> offFill = () => live() ? DcNeutral() : DsOffFill(DcNeutral());
         Action click = () => { if (live()) toggle(); };
         return new CellElement(new ConditionalElement(on,
-            DsChipShell(DcDrop(DcBold(() => "ON", () => live() ? EnsureContrast(DhGreen, onFill(), 4.5f) : DsOffInk(),
+            DsChipShell(DcDrop(DcBold(() => L("dc.set.chipOn"), () => live() ? EnsureContrast(DhGreen, onFill(), 4.5f) : DsOffInk(),
                 DcFsSmall, DsChipW, TextAlign.Center)), onFill, hover, click, live),
-            DsChipShell(DcSmall(() => "OFF", () => live() ? MutedColor() : DsOffInk(), DcFsSmall, DsChipW, TextAlign.Center),
+            DsChipShell(DcSmall(() => L("dc.set.chipOff"), () => live() ? MutedColor() : DsOffInk(), DcFsSmall, DsChipW, TextAlign.Center),
                 offFill, hover, click, live)),
             Width: DsChipW);
     }

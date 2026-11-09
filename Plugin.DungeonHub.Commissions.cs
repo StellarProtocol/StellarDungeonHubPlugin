@@ -104,14 +104,14 @@ public sealed partial class Plugin
     }
 
     // ── text ──────────────────────────────────────────────────────────────────────────────────────────────────────
-    private string DhCmDone() => _dhCm is { } c ? $"{c.DoneCount} / {c.Total} done" : "—";
+    private string DhCmDone() => _dhCm is { } c ? LF("dh.cm.done", c.DoneCount, c.Total) : "—";
 
     // List sub-line: Not accepted · N left · D / 3 done · green 3 / 3 done ("Locked" comes first, DhRowSub). The green is
     // a TMP <color> tag — the sub-line is a RichEmoji TextElement (as DhRaidRowSub).
     private string DhCmRowSub(DhEntry e) => _dhCm switch
     {
         null => e.SubText,
-        { NotAccepted: true } c => $"Not accepted · {c.AcceptLeft} left",
+        { NotAccepted: true } c => LF("dh.cm.notAcceptedLeft", c.AcceptLeft),
         { AllDone: true } => $"<color=#5fd38d>{DhCmDone()}</color>",
         _ => DhCmDone(),
     };
@@ -124,8 +124,7 @@ public sealed partial class Plugin
         int s = Math.Max(0, (int)(c.ResetSec - Math.Max(0, DcNow - c.At)));
         if (s == _dhCmCdSec) return _dhCmCd;
         _dhCmCdSec = s;
-        int h = s / 3600, m = s % 3600 / 60, sec = s % 60;
-        return _dhCmCd = h > 0 ? $"in {h}h {m:00}m" : m > 0 ? $"in {m}m {sec:00}s" : $"in {sec}s";
+        return _dhCmCd = LF("dh.cm.resetIn", DhDur(s, days: false));   // Plugin.Loc.cs
     }
 
     // ── panel: art · name · three tiles · the events in one fixed-height block, so the window is the same height as on
@@ -148,10 +147,10 @@ public sealed partial class Plugin
         DhNameRow(),
         new RowElement(new HudElement[]
         {
-            DhGhTile(() => "Today", DhCmTodayText, DhCmTodayColor, null, DhThirdW),
-            DhGhTile(() => "Accepts left", () => _dhCm is { } c ? $"{c.AcceptLeft} / {c.Cap}" : "—",
+            DhGhTile(() => L("dh.tile.today"), DhCmTodayText, DhCmTodayColor, null, DhThirdW),
+            DhGhTile(() => L("dh.tile.acceptsLeft"), () => _dhCm is { } c ? $"{c.AcceptLeft} / {c.Cap}" : "—",
                 () => _dhCm is { AcceptLeft: <= 0 } ? MutedColor() : TextColor(), null, DhThirdMidW),
-            DhGhTile(() => "Resets", () => _dhCm is { ResetClock.Length: > 0 } c ? c.ResetClock : "—", () => TextColor(),
+            DhGhTile(() => L("dh.tile.resets"), () => _dhCm is { ResetClock.Length: > 0 } c ? c.ResetClock : "—", () => TextColor(),
                 DhCmResetIn, DhThirdW),
         }, Gap: DhPanGap),
         new RowElement(new HudElement[]
@@ -164,10 +163,10 @@ public sealed partial class Plugin
             }, Gap: DhCmRowGap)), Width: DhDetInW),
         }, Gap: 0.01f));
 
-    private string DhCmTodayText() => DhCur is { Locked: true } ? "Locked" : _dhCm switch
+    private string DhCmTodayText() => DhCur is { Locked: true } ? L("dh.word.locked") : _dhCm switch
     {
         null => "—",
-        { NotAccepted: true } => "Not accepted",
+        { NotAccepted: true } => L("dh.cm.notAccepted"),
         _ => DhCmDone(),
     };
 
@@ -184,7 +183,7 @@ public sealed partial class Plugin
     private HudElement DhCmBar() => new ConditionalElement(() => DhCur is { Locked: false } && _dhCm is { CanAccept: true },
         new RowElement(new HudElement[]
         {
-            DhPill(() => _dhCm is { } c ? $"Accept quest · {c.AcceptLeft} accept{(c.AcceptLeft == 1 ? "" : "s")} left" : "Accept quest",
+            DhPill(() => _dhCm is { } c ? (c.AcceptLeft == 1 ? L("dh.cm.accept1") : LF("dh.cm.acceptN", c.AcceptLeft)) : L("dh.cm.accept"),
                 () => Menu.MenuAccent, () => DcOn(White, Menu.MenuAccent), DhOnCmAccept, DhDetInW - DhCmBoardW - DhPanGap, DhCmPillH),
             DhCmBoardPill(),
         }, Gap: DhPanGap),
@@ -193,16 +192,16 @@ public sealed partial class Plugin
             DhCmStatus(DhDetInW)));
 
     private HudElement DhCmBoardPill() =>
-        DhPill(() => "Go to the board", () => DcNeutral(), () => EnsureContrast(TextColor(), DcNeutral(), 4.5f), DhOnCmBoard, DhCmBoardW, DhCmPillH);
+        DhPill(() => L("dh.cm.board"), () => DcNeutral(), () => EnsureContrast(TextColor(), DcNeutral(), 4.5f), DhOnCmBoard, DhCmBoardW, DhCmPillH);
 
     private HudElement DhCmStatus(float w) => new CellElement(new RowElement(new HudElement[]
     {
         new SpacerElement(DcSE(4f), DhCmPillH),
-        new CellElement(new TextElement(() => DhCur is { Locked: true } ? "Locked" : _dhCm switch
+        new CellElement(new TextElement(() => DhCur is { Locked: true } ? L("dh.word.locked") : _dhCm switch
             {
                 null => "",
-                { Have: true } => "Quest in progress",
-                _ => "No accepts left · Enter is off until the reset",
+                { Have: true } => L("dh.cm.inProgress"),
+                _ => L("dh.cm.noAccepts"),
             }, Color: () => MutedColor(), NoWrap: true, FontSize: DhFsSub) { Ellipsize = true }, Weight: 1f),
     }, Gap: 0.01f), Width: w);
 
@@ -214,12 +213,12 @@ public sealed partial class Plugin
     {
         var items = new HudElement[DhCmSlots + 2];
         items[0] = new ConditionalElement(() => _dhCm is { Events.Count: 0 }, DhCmHint(() =>
-            "Today's events appear after you accept the daily quest at the Pioneer Bureau board."));
+            L("dh.cm.emptyHint")));
         items[1] = new ConditionalElement(() => _dhCm is { AllDone: true, CanAccept: true } && DhCur is { Locked: false },
             new RowElement(new HudElement[]
             {
                 new SpacerElement(0f, DhActSubH),
-                new CellElement(new TextElement(() => "Entering an event also starts the next round.", Color: () => MutedColor(),
+                new CellElement(new TextElement(() => L("dh.cm.nextRound"), Color: () => MutedColor(),
                     NoWrap: true, FontSize: DhFsSub) { Ellipsize = true }, Weight: 1f),
             }, Gap: 0.01f));
         for (int i = 0; i < DhCmSlots; i++)
@@ -256,9 +255,9 @@ public sealed partial class Plugin
             }, Gap: 0.01f), Weight: 1f),
         };
         if (done)
-            parts.Add(DcBold(() => "Done", () => DhGreen, DhFsSmall));
+            parts.Add(DcBold(() => L("dh.cm.doneTag"), () => DhGreen, DhFsSmall));
         else
-            parts.Add(DhCmPill(() => "Enter", () => DhSoloFill, () => DhSoloInk,
+            parts.Add(DhCmPill(() => L("dh.cm.enter"), () => DhSoloFill, () => DhSoloInk,
                 () => DhCur is { Locked: false } && _dhCm is { CanEnter: true }, () => DhOnCmEnter(i), DhCmPillW));
         parts.Add(new SpacerElement(DcSE(10f) - DcSE(6f), 0f));   // + the 10 px row gap = 16, both looks
         return new BubbleElement(new RowElement(parts.ToArray(), Gap: DcSE(6f)))
@@ -316,7 +315,7 @@ public sealed partial class Plugin
             _dhCmWhat = what; _dhCmSince = DcNow; _dhCmWait = true; _dhFullDue = true;
             if (!keepOpen) DhHide();
         }
-        else if (res.StartsWith("NO", StringComparison.Ordinal)) DhSetNotice($"Bureau Commissions: {res.Substring(2).Trim()}");
+        else if (res.StartsWith("NO", StringComparison.Ordinal)) DhSetNotice(LF("dh.cm.notice", DhReason(res.Substring(2).Trim())));
     }
 
     // Hub tick (also while hidden): the Accept / Teleport coroutine's result, or a timeout.
@@ -347,7 +346,7 @@ public sealed partial class Plugin
         else if (res.StartsWith("NO", StringComparison.Ordinal))
         {
             _services.Log.Info($"[DungeonHub] {what}: not sent — {res.Substring(2).Trim()}");
-            DhSetNotice($"Bureau Commissions: {res.Substring(2).Trim()}");
+            DhSetNotice(LF("dh.cm.notice", DhReason(res.Substring(2).Trim())));
         }
         else
         {

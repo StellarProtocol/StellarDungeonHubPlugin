@@ -95,6 +95,7 @@ public sealed partial class Plugin
                 Category:    WindowCategory.Tools,
                 Style:       WindowPanelStyle.GlassMenu)
             { Draggable = true, Closable = false, StartVisible = false, ShowTitleBar = false, Anchor = WindowAnchor.Center,
+              TitleProvider = () => L("dh.title"),
               FrameOpacity = DhFrameOpacity,   // settings' custom opacity, null = theme (.WindowOpacity.cs)
               ShouldRender = () => _dhShow && _services.ClientState.Phase == GamePhase.World &&
                                    (_services.ClientState.UiState & GameUIState.Loading) == 0 },
@@ -134,7 +135,7 @@ public sealed partial class Plugin
             }, Width: DhHeaderH),
         new CellElement(new ColumnElement(new HudElement[]
         {
-            DcBold(() => "Dungeon Hub", TextColor, DhFsTitle),
+            DcBold(() => L("dh.title"), TextColor, DhFsTitle),
             new RowElement(new HudElement[]
             {
                 DcSmall(() => DhStatus().a, MutedColor, DhFsSmall),
@@ -178,7 +179,7 @@ public sealed partial class Plugin
             tabs[i] = new CellElement(new BubbleElement(new SelectableElement(new RowElement(new HudElement[]
                 {
                     new SpacerElement(0f, DhTabH),
-                    DcDrop(DcBold(() => DhTabNames[k], () => _dhTab == k ? DcOn(Menu.MenuAccent, DhTabOnFill()) : MutedColor(),
+                    DcDrop(DcBold(() => L(DhTabKeys[k]), () => _dhTab == k ? DcOn(Menu.MenuAccent, DhTabOnFill()) : MutedColor(),
                         DhFsSmall, DhTabW, TextAlign.Center)),
                 }, Gap: 0.01f, Justify: RowJustify.Center), OnClick: () => DhSelectTab(k)) { Bare = true, OnHover = o => hover.On = o })
                 {
@@ -220,7 +221,7 @@ public sealed partial class Plugin
     {
         var slots = new HudElement[DhListSlots];
         for (int i = 0; i < DhListSlots; i++) slots[i] = DhListSlot(i);
-        return DhPanel(() => DhTab == DhTabHero ? "DUNGEON" : DhTab == DhTabRaid ? "RAID" : "ACTIVITY",
+        return DhPanel(() => L(DhTab == DhTabHero ? "dh.cap.dungeon" : DhTab == DhTabRaid ? "dh.cap.raid" : "dh.cap.activity"),
             () => DhCur?.CapText ?? "",
             new ScrollElement(new ListElement(() => Math.Min(DhListSlots, DhList.Count), slots), DhScrollH) { FixedHeight = true });
     }
@@ -233,8 +234,8 @@ public sealed partial class Plugin
     private string DhGroupHeader(int i)
     {
         if (_dhTab != DhTabHero || DhAt(i) is not { } e) return "";
-        if (e.Unstable) return i == 0 ? "OPEN TODAY" : "";
-        return i > 0 && DhAt(i - 1) is { Unstable: true } ? "DUNGEONS" : "";
+        if (e.Unstable) return i == 0 ? L("dh.grp.openToday") : "";
+        return i > 0 && DhAt(i - 1) is { Unstable: true } ? L("dh.grp.dungeons") : "";
     }
 
     private static readonly float DhGrpH = DcSE(14f), DhGrpPadX = DcS(2f);                                // 22 · 3
@@ -300,7 +301,7 @@ public sealed partial class Plugin
     private HudElement DhUnstableTag() => new CellElement(new BubbleElement(new RowElement(new HudElement[]
         {
             new SpacerElement(0f, DhTagH),
-            DcBold(() => "UNSTABLE", () => EnsureContrast(DhBlue, DcWash(DhBlue, 0.18f), 3f), DhFsTag, DhTagW, TextAlign.Center),
+            DcBold(() => L("dh.tag.unstable"), () => EnsureContrast(DhBlue, DcWash(DhBlue, 0.18f), 3f), DhFsTag, DhTagW, TextAlign.Center),
         }, Gap: 0.01f, Justify: RowJustify.Center))
         {
             FillColorFn = () => Fade(DcWash(DhBlue, 0.18f)), CornerRadius = DcS(7f), PaddingX = 0f, PaddingY = 0f, MaxWidth = DhTagW,
@@ -325,18 +326,19 @@ public sealed partial class Plugin
 
     private HudElement DhBarIdle() => DhBar(
         DhBarDot(MutedColor),
-        DcSmall(DhIdleText, DhIdleColor, DhFsSmall),
-        new SpacerElement(0f),
+        // The notice takes the slack and ellipsizes (a translated refusal can be long); the party text keeps its width.
+        new CellElement(new TextElement(DhIdleText, Color: () => DhIdleColor(), NoWrap: true, FontSize: DhFsSmall)
+            { RichEmoji = true, Ellipsize = true }, Weight: 1f),
         DcSmall(DhPartyText, MutedColor, DhFsSmall),
         new SpacerElement(DcSE(2f), 0f));
 
     // Matching: accent dot · bold "Matching" · muted "· <dungeon> (<difficulty>) · mm:ss" · red Cancel (any tab).
     private HudElement DhBarMatching() => DhBar(
         DhBarDot(() => Menu.MenuAccent),
-        DcBold(() => "Matching", TextColor, DhFsSmall),
+        DcBold(() => L("dh.bar.matching"), TextColor, DhFsSmall),
         new CellElement(new TextElement(DhMatchText, Color: () => MutedColor(), NoWrap: true, FontSize: DhFsSmall)
             { RichEmoji = true, Ellipsize = true }, Weight: 1f),
-        DhPill(() => "Cancel", () => DangerFill, () => DcOn(White, Over(DangerFill, PanelColor())), DhOnCancel, DhCancelW, DhChipH));
+        DhPill(() => L("dh.btn.cancel"), () => DangerFill, () => DcOn(White, Over(DangerFill, PanelColor())), DhOnCancel, DhCancelW, DhChipH));
 
     // A round pill of a fixed size: bold centred label, hover = 10 % text wash (R2: the hover follows the shape). Its fill
     // follows the window opacity (Style.cs Fade) like every other fill, action pills (Cancel …) included.

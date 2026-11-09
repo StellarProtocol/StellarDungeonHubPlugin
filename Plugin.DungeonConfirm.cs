@@ -54,7 +54,7 @@ public sealed partial class Plugin
 
         // Registered UNBOUND (null default key) — discoverable/rebindable in the hotkey settings, user assigns the key.
         _dcHotkey = _services.Hotkeys.DeclareAction(
-            new HotkeyAction("dungeonhub.confirm-toggle", "Dungeon: Toggle Confirm Replacement", null),
+            new HotkeyAction("dungeonhub.confirm-toggle", L("dc.hotkey.toggle"), null),
             callback: () => { if (_services.ClientState.Phase == GamePhase.World) ApplyDcReplace(!_dcReplace); });
 
         _services.ClientState.Logout       += OnDcLogout;
@@ -174,7 +174,7 @@ public sealed partial class Plugin
             DcApplySnap(snap);
             if (_dcEnd == DcEnd.None)
             {
-                if (snap.FirstDeclined is { } d) DcBeginEnd(DcEnd.Declined, d.Me ? "You" : d.Name);
+                if (snap.FirstDeclined is { } d) DcBeginEnd(DcEnd.Declined, d.Me ? L("dc.you") : d.Name);
                 else if (DcRemaining <= 0)
                 {
                     // The native view self-closes at 0 too (team_enter_view.lua:342-346). If entry is already under
@@ -193,9 +193,9 @@ public sealed partial class Plugin
             // waiting. Then: everyone ready (or the leader's entry already "doing") = we're going in, just hide. Then a
             // Cancel / TimeOut vote. With no failure signal at all: out of time = a timeout guess; time left = entry is
             // proceeding (a real leader cancel always sends a Cancel vote, code 3, so it's caught above), just hide.
-            if (_dc != null && DcMarkRefuser(refuser) is { } r) DcBeginEnd(DcEnd.Declined, r.Me ? "You" : r.Name);
+            if (_dc != null && DcMarkRefuser(refuser) is { } r) DcBeginEnd(DcEnd.Declined, r.Me ? L("dc.you") : r.Name);
             else if (_dc == null || _dc.Doing || DcMarkAgrees(agrees) == _dc.Members.Count) { DcHide(); _dcDismissed = true; return; }
-            else if (_dc.FirstDeclined is { } d) DcBeginEnd(DcEnd.Declined, d.Me ? "You" : d.Name);
+            else if (_dc.FirstDeclined is { } d) DcBeginEnd(DcEnd.Declined, d.Me ? L("dc.you") : d.Name);
             else if (endKind == "T") DcBeginTimedOut(touts);
             else if (endKind == "C") DcBeginEnd(DcEnd.Cancelled, "");
             else if (DcRemaining <= 0.5) DcBeginTimedOut(touts);

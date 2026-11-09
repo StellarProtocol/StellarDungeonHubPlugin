@@ -139,6 +139,7 @@ public sealed partial class Plugin
                 Category:    WindowCategory.Tools,
                 Style:       WindowPanelStyle.GlassMenu)
             { Draggable = true, Closable = false, StartVisible = false, ShowTitleBar = false, Anchor = WindowAnchor.Center,
+              TitleProvider = () => L("dc.title"),
               FrameOpacity = DhFrameOpacity,   // settings' custom opacity, null = theme (.WindowOpacity.cs)
               ShouldRender = () => on() && _services.ClientState.Phase == GamePhase.World &&
                                    (_services.ClientState.UiState & GameUIState.Loading) == 0 },
@@ -178,11 +179,11 @@ public sealed partial class Plugin
     private static TextElement DcSmall(Func<string> text, Func<ColorRgba> color, int size = 0, float width = 0f,
         TextAlign align = TextAlign.Left) =>
         new(text, Color: () => color(), Width: width, Align: align, NoWrap: true, FontSize: size > 0 ? size : DcFsSmall)
-            { RichEmoji = true };
+            { RichEmoji = true, Ellipsize = width > 0 };   // a fixed cell cuts a long translation with …
 
     private static TextElement DcBold(Func<string> text, Func<ColorRgba> color, int size, float width = 0f,
         TextAlign align = TextAlign.Left) =>
-        new(text, Color: () => color(), Width: width, Align: align, NoWrap: true, FontSize: size) { Bold = true };
+        new(text, Color: () => color(), Width: width, Align: align, NoWrap: true, FontSize: size) { Bold = true, Ellipsize = width > 0 };
 
     // Bold (TMP) labels sit ~1.5 px high per 28 px when line-box centred: put the label in a Column under a 2×drop
     // spacer, which centres the pair and moves the caps DOWN by DcBoldDrop (Maestro DropBold, R9 equal ink margins).
@@ -265,7 +266,7 @@ public sealed partial class Plugin
     {
         DcBold(() => _dc == null ? "" : _dc.ReadyCount.ToString(), () => StatusOn, DcFsSmall),
         DcWordSpace(),   // edge spaces in a run are dropped (header note)
-        DcSmall(() => _dc == null ? "" : $"/ {_dc.Members.Count} ready", MutedColor),
+        DcSmall(() => _dc == null ? "" : LF("dc.readyOf", _dc.Members.Count), MutedColor),
     }, Gap: 0.01f);
 
     // ── shared blocks ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -304,7 +305,7 @@ public sealed partial class Plugin
     private HudElement DcDiffChip() => new CellElement(new BubbleElement(new RowElement(new HudElement[]
         {
             new SpacerElement(0f, DcStatusH),
-            DcDrop(new TextElement(() => _dc?.TypeName ?? "", Color: () => EnsureContrast(DcDiffText(), DcDiffFill(), 4.5f),
+            DcDrop(new TextElement(() => DhWord(_dc?.TypeName), Color: () => EnsureContrast(DcDiffText(), DcDiffFill(), 4.5f),
                 Width: DcDiffW - 2f * DcDiffPadX, Align: TextAlign.Center, NoWrap: true, FontSize: DcFsSmall)
                 { Bold = true, Ellipsize = true }),
         }, Gap: 0.01f, Justify: RowJustify.Center))
@@ -346,7 +347,7 @@ public sealed partial class Plugin
     private float DcBarFraction() =>
         _dc == null || _dcEnd != DcEnd.None ? 0f : (float)Math.Clamp(DcRemaining / _dc.TotalSec, 0, 1);
 
-    private string DcTimerText() => _dc == null ? "" : _dcEnd != DcEnd.None ? "–" : $"{(int)Math.Ceiling(DcRemaining)}s";
+    private string DcTimerText() => _dc == null ? "" : _dcEnd != DcEnd.None ? "–" : LF("dc.timer", (int)Math.Ceiling(DcRemaining));
     private ColorRgba DcTimerColor() => _dcEnd != DcEnd.None ? MutedColor() : DcLow ? DcAmber : Menu.MenuAccent;
 
     // Footer: muted message left, two fixed 186 px slots right. Every state shows a 186×44 element in each slot (an
@@ -366,23 +367,23 @@ public sealed partial class Plugin
     private HudElement DcLeftSlot() => new ConditionalElement(() => _dc == null || _dcEnd != DcEnd.None || (!_dc.Match && _dc.IAmLeader),
         DcBlankSlot(),
         new ConditionalElement(() => _dcMatchDeclined,
-            DcPillOff(() => "Declined", DcNeutral),
+            DcPillOff(() => L("dc.btn.declined"), DcNeutral),
             new ConditionalElement(() => DcNow <= _dcArmUntil,
-                DcDanger(() => "Decline?", DcOnDecline),
-                DcDanger(() => "Decline", DcOnDecline))));
+                DcDanger(() => L("dc.btn.declineArm"), DcOnDecline),
+                DcDanger(() => L("dc.btn.decline"), DcOnDecline))));
 
     // Right: Close (end) · Cancel Entry / disabled once "doing" (leader) · Confirm / green "Confirmed ✓" (Art.cs).
     private HudElement DcRightSlot() => new ConditionalElement(() => _dc == null || _dcEnd != DcEnd.None,
-        DcNeutralPill(() => "Close", DcClose),
+        DcNeutralPill(() => L("dc.btn.close"), DcClose),
         new ConditionalElement(() => !_dc!.Match && _dc.IAmLeader,
             new ConditionalElement(() => _dc!.Doing,
-                DcPillOff(() => "Cancel Entry", () => DangerFill),
-                DcDanger(() => "Cancel Entry", DcOnLeaderCancel)),
+                DcPillOff(() => L("dc.btn.cancelEntry"), () => DangerFill),
+                DcDanger(() => L("dc.btn.cancelEntry"), DcOnLeaderCancel)),
             new ConditionalElement(() => _dcMatchDeclined,
-                DcPillOff(() => "Confirm", () => DcConfirmedFill),
+                DcPillOff(() => L("dc.btn.confirm"), () => DcConfirmedFill),
                 new ConditionalElement(() => _dcConfirmed,
                     DcConfirmedPill(),
-                    DcPrimary(() => "Confirm", DcOnConfirm)))));
+                    DcPrimary(() => L("dc.btn.confirm"), DcOnConfirm)))));
 
     // ── 5-player layout ───────────────────────────────────────────────────────────────────────────────────────────
     private HudElement BuildDc5Root() => new ColumnElement(new HudElement[]
@@ -397,13 +398,13 @@ public sealed partial class Plugin
         DcFooter(() => _dcEnd != DcEnd.None ? DcClosingText() : ""),
     }, Gap: DcGap);
 
-    private string DcClosingText() => $"Closing in {Math.Max(1, (int)Math.Ceiling(_dcEndUntil - DcNow))}s";
+    private string DcClosingText() => LF("dc.closingIn", Math.Max(1, (int)Math.Ceiling(_dcEndUntil - DcNow)));
 
     private HudElement DcPartyPanel(float filler)
     {
         var rows = new HudElement[5];
         for (int i = 0; i < 5; i++) rows[i] = DcPartyRow(i);
-        return DcPanel(() => "PARTY", DcReadyHint(),
+        return DcPanel(() => L("dc.cap.party"), DcReadyHint(),
             new ColumnElement(rows, Gap: DcRowGap),
             new SpacerElement(0f, filler));
     }
@@ -438,7 +439,7 @@ public sealed partial class Plugin
     private HudElement DcEmptyRow(float rowW) => new BubbleElement(new RowElement(new HudElement[]
     {
         new SpacerElement(DcRowLead, DcRowH),
-        new CellElement(DcSmall(() => "Empty", () => MutedColor() with { A = 0.6f }, DcFsBody), Width: rowW - DcRowLead),
+        new CellElement(DcSmall(() => L("dc.empty"), () => MutedColor() with { A = 0.6f }, DcFsBody), Width: rowW - DcRowLead),
     }, Gap: 0.01f))
     {
         FillColorFn = () => Fade(Mix(PanelColor(), DcTile(), 0.45f)), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f,
@@ -472,6 +473,6 @@ public sealed partial class Plugin
     {
         new TextElement(() => m()?.Name ?? "", Color: () => TextColor(), NoWrap: true, FontSize: DcFsBody)
             { Bold = true, Ellipsize = true },
-        new ConditionalElement(() => withAssist && m() is { Assist: true }, DcBold(() => "ASSIST", () => Menu.MenuAccent, DcFsTag, DcAssistW)),
+        new ConditionalElement(() => withAssist && m() is { Assist: true }, DcBold(() => L("dc.assist"), () => Menu.MenuAccent, DcFsTag, DcAssistW)),
     }, Gap: DcSp4);
 }

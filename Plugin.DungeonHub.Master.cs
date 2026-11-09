@@ -21,12 +21,11 @@ public sealed partial class Plugin
     private const int DhLvCount = 20, DhLvPerRow = 10;
     private static readonly float DhLvRing = DcS(2f), DhLvRadius = DcS(7f), DhLvBarH = DcS(3f);            // 3 · 11 · 5
     private static readonly string[] DhLvNums = DhNumbers(DhLvCount);
-    private static readonly string[] DhMasterLabels = DhNumbers(DhLvCount, "Master ");
 
-    private static string[] DhNumbers(int n, string prefix = "")
+    private static string[] DhNumbers(int n)
     {
         var a = new string[n];
-        for (int i = 0; i < n; i++) a[i] = prefix + (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        for (int i = 0; i < n; i++) a[i] = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
         return a;
     }
 
@@ -107,13 +106,13 @@ public sealed partial class Plugin
         return new RowElement(new HudElement[]
         {
             new SpacerElement(0f, DhLegendH),
-            DhSwatch(() => DcWash(DhGreen, 0.3f), sw, sw), new SpacerElement(gap, 0f), DcSmall(() => "cleared", MutedColor, DhFsSub),
+            DhSwatch(() => DcWash(DhGreen, 0.3f), sw, sw), new SpacerElement(gap, 0f), DcSmall(() => L("dh.legend.cleared"), MutedColor, DhFsSub),
             new SpacerElement(group, 0f),
-            DhSwatch(() => DcNeutral(), sw, sw), new SpacerElement(gap, 0f), DcSmall(() => "next", MutedColor, DhFsSub),
+            DhSwatch(() => DcNeutral(), sw, sw), new SpacerElement(gap, 0f), DcSmall(() => L("dh.legend.next"), MutedColor, DhFsSub),
             new SpacerElement(group, 0f),
-            DhSwatch(() => Mix(PanelColor(), DcNeutral(), 0.5f), sw, sw), new SpacerElement(gap, 0f), DcSmall(() => "locked", MutedColor, DhFsSub),
+            DhSwatch(() => Mix(PanelColor(), DcNeutral(), 0.5f), sw, sw), new SpacerElement(gap, 0f), DcSmall(() => L("dh.legend.locked"), MutedColor, DhFsSub),
             new SpacerElement(group, 0f),
-            DhSwatch(() => Menu.MenuAccent, sw, DcSE(4f)), new SpacerElement(gap, 0f), DcSmall(() => "Solo + Match allowed", MutedColor, DhFsSub),
+            DhSwatch(() => Menu.MenuAccent, sw, DcSE(4f)), new SpacerElement(gap, 0f), DcSmall(() => L("dh.legend.soloMatch"), MutedColor, DhFsSub),
         }, Gap: 0.01f);
     }
 

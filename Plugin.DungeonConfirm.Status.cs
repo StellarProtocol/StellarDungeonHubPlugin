@@ -24,9 +24,9 @@ public sealed partial class Plugin
     // Leader shows "Leader" only in team mode (match has no leader); a leader who declined can't happen (they cancel).
     // State 5 "No answer" (Ready 3, set only here in C# by DcMarkTimeouts) = Declined's red look: red wash + ink, the ✕ mark.
     private static int DcState(DcMember? m) => m == null ? 0 : m.Ready == 2 ? 3 : m.Ready == 3 ? 5 : m.Leader ? 4 : m.Ready == 1 ? 1 : 2;
-    private static string DcStatusLabel(DcMember? m) => DcState(m) switch
+    private string DcStatusLabel(DcMember? m) => DcState(m) switch
     {
-        1 => "Ready", 2 => "Waiting…", 3 => "Declined", 4 => "Leader", 5 => "No answer", _ => "",
+        1 => L("dc.st.ready"), 2 => L("dc.st.waiting"), 3 => L("dc.st.declined"), 4 => L("dc.st.leader"), 5 => L("dc.st.noAnswer"), _ => "",
     };
 
     // "Time ran out", team mode: mark who didn't answer (Ready 3) and name them in the header (_dcEndName / _dcEndCount,
@@ -53,7 +53,7 @@ public sealed partial class Plugin
             foreach (var m in _dc.Members) if (m.Ready == 0 && !m.Leader) _dcSilent.Add((m, m.Ready));
         foreach (var (m, _) in _dcSilent) m.Ready = 3;
         _dcEndCount = _dcSilent.Count;
-        if (_dcEndCount == 1) _dcEndName = _dcSilent[0].m.Me ? "You" : _dcSilent[0].m.Name;
+        if (_dcEndCount == 1) _dcEndName = _dcSilent[0].m.Me ? L("dc.you") : _dcSilent[0].m.Name;
     }
     // State colours (raid marks + 5-player pills) = "style A", the difficulty chip's look: a 22 % wash of the colour over
     // the Tile and a BRIGHT tint of the same hue as the bold label / ✓ / ✕ / ★, used AS IS. The 45 % wash + EnsureContrast

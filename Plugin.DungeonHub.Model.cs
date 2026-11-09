@@ -28,7 +28,7 @@ public sealed partial class Plugin
     // Hero level slots: 1 Normal · 2 Hard · 3 Master (= the page's StarLevel); slot 0 is used only by an Unstable entry
     // (v5: Unstable is its own list entry with that one level, no longer a chip on the regular dungeon).
     private const int DhChipCount = 4, DhUnstableIdx = 0, DhMasterIdx = 3;
-    private static readonly string[] DhTabNames = { "Dungeons", "Raid", "World Boss", "Hunt", "Other" };
+    private static readonly string[] DhTabKeys = { "dh.tab.dungeons", "dh.tab.raid", "dh.tab.worldBoss", "dh.tab.hunt", "dh.tab.other" };
 
     private sealed class DhLevel
     {
@@ -83,7 +83,7 @@ public sealed partial class Plugin
                     {
                         InTeam = f[1] == "1", Leader = f[2] == "1", Count = DcInt(f[3]), Max = Math.Max(1, DcInt(f[4], 5)),
                         MatchType = DcInt(f[5]), MatchDungeon = DcInt(f[6]), MatchDiff = DcInt(f[7]), MatchAct = DcInt(f[8]),
-                        Elapsed = DcInt(f[9]), ElapsedAt = DcNow, MatchName = f[10], MatchDiffName = f[11],
+                        Elapsed = DcInt(f[9]), ElapsedAt = DcNow, MatchName = f[10], MatchDiffName = DhWord(f[11]),
                         InDungeon = f[12] == "1", MyScore = DcInt(f[13]), OpenState = f[14],
                     };
                     break;
@@ -94,15 +94,15 @@ public sealed partial class Plugin
                     if (tab < 0 || tab >= DhTabCount) break;
                     var e = new DhEntry
                     {
-                        Tab = tab, Key = f[2], Name = f[3], Art = f[4], ArtBg = f[5], Locked = f[6] == "1", Sub = f[7],
+                        Tab = tab, Key = f[2], Name = f[3], Art = f[4], ArtBg = f[5], Locked = f[6] == "1", Sub = DhWord(f[7]),
                         Cap = DcInt(f[8]), Group = DcInt(f[9]), MasterId = DcInt(f[10]), MasterCount = DcInt(f[11]),
-                        MasterMax = DcInt(f[12]), MasterArt = f[13], FuncId = DcInt(f[14]), CounterKey = f[15],
+                        MasterMax = DcInt(f[12]), MasterArt = f[13], FuncId = DcInt(f[14]), CounterKey = DhWord(f[15]),
                         CounterVal = f[16], CounterZero = f[17] == "1", CanMatch = f[18] == "1", MatchActId = DcInt(f[19]),
                     };
                     if (f.Length > 20) e.Unstable = f[20] == "1";
                     if (f.Length > 21) e.Title = f[21];
                     if (f.Length > 22) e.MasterOn = f[22] == "1";
-                    if (e.Cap > 0) e.CapText = $"{e.Cap}-player";
+                    if (e.Cap > 0) e.CapText = LF("dh.capText", e.Cap);
                     (e.SubText, e.TileVal) = DhCounterText(e.CounterVal, e.CounterZero);
                     lists[tab].Add(e);
                     byKey[e.Key] = e;
@@ -114,9 +114,9 @@ public sealed partial class Plugin
                     if (idx < 0 || idx >= owner.Levels.Length) break;
                     var lv = new DhLevel
                     {
-                        DungeonId = DcInt(f[3]), Diff = DcInt(f[4]), Label = f[5], Unlocked = f[6] == "1", Rec = DcInt(f[7]),
+                        DungeonId = DcInt(f[3]), Diff = DcInt(f[4]), Label = DhWord(f[5]), Unlocked = f[6] == "1", Rec = DcInt(f[7]),
                         HasSolo = f[8] == "1", SoloOk = f[9] == "1", SoloWhy = f[10], Match = f[11] == "1",
-                        CounterKey = f[12], CounterVal = f[13], CounterZero = f[14] == "1", Art = f[15], ArtBg = f[16],
+                        CounterKey = DhWord(f[12]), CounterVal = DhWord(f[13]), CounterZero = f[14] == "1", Art = f[15], ArtBg = f[16],
                         Kind = DcInt(f[17]),
                     };
                     if (f.Length > 18) lv.RecText = f[18];
@@ -126,14 +126,14 @@ public sealed partial class Plugin
                         // Normal / Hard: no reward counter in the game — the first-clear reward, like the hero page
                         lv.SubText = lv.FirstClear switch
                         {
-                            1 => $"{lv.Label} · first clear ready", 2 => $"{lv.Label} · first clear claimed", _ => lv.Label,
+                            1 => LF("dh.fc.ready", lv.Label), 2 => LF("dh.fc.claimed", lv.Label), _ => lv.Label,
                         };
                         lv.TileVal = lv.CounterVal;
                     }
                     else (lv.SubText, lv.TileVal) = DhCounterText(lv.CounterVal, lv.CounterZero);
                     // Raid rewards are counted per difficulty: the tile names the picked one ("Rewards left · Easy").
                     if (owner.Tab == DhTabRaid && lv.CounterKey.Length > 0 && lv.Label.Length > 0)
-                        lv.CounterKey = $"{lv.CounterKey} · {lv.Label}";
+                        lv.CounterKey = LF("dh.counterFor", lv.CounterKey, lv.Label);
                     owner.Levels[idx] = lv;
                     break;
                 }
@@ -143,7 +143,7 @@ public sealed partial class Plugin
                     {
                         Diff = DcInt(f[1]), DungeonId = DcInt(f[2]), Label = f[3], Unlocked = f[4] == "1", Rec = DcInt(f[5]),
                         HasSolo = f[6] == "1", SoloOk = f[7] == "1", SoloWhy = f[8], Match = f[9] == "1",
-                        CounterKey = f[10], CounterVal = f[11], CounterZero = f[12] == "1", Cleared = f[13] == "1", Kind = 4,
+                        CounterKey = DhWord(f[10]), CounterVal = DhWord(f[11]), CounterZero = f[12] == "1", Cleared = f[13] == "1", Kind = 4,
                     };
                     lv.TileVal = lv.CounterVal;   // "First clear": Cleared / Reward ready, never a count
                     _dhMaster.Add(lv);
@@ -170,8 +170,8 @@ public sealed partial class Plugin
 
     // "Rewards left x / y" is information only: at 0 it reads "0 / y · no rewards" (muted, never red) and never
     // disables a button — entering with no rewards left is the player's call. Built once per parse, read per frame.
-    private static (string sub, string tile) DhCounterText(string val, bool zero) =>
-        val.Length == 0 ? ("", "") : ($"Rewards left {val}", zero ? $"{val} · no rewards" : val);
+    private (string sub, string tile) DhCounterText(string val, bool zero) =>
+        val.Length == 0 ? ("", "") : (LF("dh.counter", val), zero ? LF("dh.counter.none", val) : val);
 
     // ── selection ─────────────────────────────────────────────────────────────────────────────────────────────────
     // Each entry remembers its own difficulty and Master level (_dhPicks), so coming back to a dungeon shows what was
@@ -260,17 +260,17 @@ public sealed partial class Plugin
     // a one-difficulty raid (Backtrack): "Rewards left" for its pick; an activity's own line.
     private string DhRowSub(DhEntry e)
     {
-        if (e.Locked) return "Locked";
+        if (e.Locked) return L("dh.word.locked");
         if (e.IsActivity) return DhIsWb(e) ? DhWbRowSub(e) : DhIsGh(e) ? DhGhRowSub(e) : DhIsCm(e) ? DhCmRowSub(e) : e.SubText;
         if (e.Tab == DhTabHero && !e.Unstable)
         {
             if (e.HighSub != null) return e.HighSub;
             if (e.MasterCount > 0 && e.MasterOn)
             {
-                int n = Math.Clamp(e.MasterMax + 1, 1, Math.Min(e.MasterCount, DhMasterLabels.Length));
-                return e.HighSub = e.MasterMax >= e.MasterCount ? $"{DhMasterLabels[n - 1]} · all cleared" : DhMasterLabels[n - 1];
+                int n = Math.Clamp(e.MasterMax + 1, 1, Math.Min(e.MasterCount, DhLvCount));
+                return e.HighSub = e.MasterMax >= e.MasterCount ? LF("dh.master.allCleared", DhMasterLabel(n)) : DhMasterLabel(n);
             }
-            return e.HighSub = e.Levels[2] is { Unlocked: true } ? "Hard" : "Normal";
+            return e.HighSub = L(e.Levels[2] is { Unlocked: true } ? "dh.diff.hard" : "dh.diff.normal");
         }
         if (e.Tab == DhTabRaid && (e.HighSub ??= DhRaidRowSub(e) ?? "").Length > 0) return e.HighSub;
         var l = e.Levels[Math.Clamp(DhPickOf(e).Idx, 0, DhChipCount - 1)];
@@ -285,7 +285,7 @@ public sealed partial class Plugin
     // 0 left = the same colour at ~55 % alpha: info only, never red, never disables. "Nightm." only when all three
     // show — the full word overflows the 226 px text column at 18 px. Null = not a multi-difficulty group / no counts.
     private static readonly string[] DhRaidHex = { "5fd38d", "ffcc73", "b385ff" };   // DhGreen / DhAmber / DhPurple
-    private static string? DhRaidRowSub(DhEntry e)
+    private string? DhRaidRowSub(DhEntry e)
     {
         int have = 0, shown = 0;
         for (int i = 0; i < 3; i++)
@@ -301,7 +301,7 @@ public sealed partial class Plugin
             if (e.Levels[i] is not { Unlocked: true, CounterVal.Length: > 0 } l) continue;
             int slash = l.CounterVal.IndexOf('/');
             string rem = (slash > 0 ? l.CounterVal[..slash] : l.CounterVal).Trim();
-            string label = i == 2 && shown == 3 ? "Nightm." : l.Label;
+            string label = i == 2 && shown == 3 ? L("dh.diff.nightmareShort") : l.Label;
             if (sb.Length > 0) sb.Append(" · ");
             sb.Append("<color=#").Append(DhRaidHex[i]).Append(l.CounterZero ? "8c" : "").Append('>')
               .Append(label).Append(' ').Append(rem).Append("</color>");
@@ -362,8 +362,8 @@ public sealed partial class Plugin
 
     // Header status: three segments (muted · bold accent · muted), like Dungeon Confirm's status line, and the bottom
     // bar's party text — built once per poll (DhParse → DhBuildLiveText), read by the per-frame Funcs.
-    private (string a, string b, string c) _dhStatus = ("Solo", "", "");
-    private string _dhPartyText = "Not in a party";
+    private (string a, string b, string c) _dhStatus = ("", "", "");   // first built in InitDungeonHub (DhBuildLiveText)
+    private string _dhPartyText = "";
 
     private (string a, string b, string c) DhStatus() => _dhStatus;
     private string DhPartyText() => _dhPartyText;
@@ -371,8 +371,8 @@ public sealed partial class Plugin
     private void DhBuildLiveText()
     {
         var l = _dhLive;
-        _dhStatus = !l.InTeam ? ("Solo", "", "") : ("In party", $"{l.Count}/{l.Max}", l.Leader ? "· leader" : "· member");
-        _dhPartyText = !l.InTeam ? "Not in a party" : $"Party {l.Count}/{l.Max} · {(l.Leader ? "you are leader" : "member")}";
+        _dhStatus = !l.InTeam ? (L("dh.status.solo"), "", "") : (L("dh.status.inParty"), $"{l.Count}/{l.Max}", L(l.Leader ? "dh.status.leader" : "dh.status.member"));
+        _dhPartyText = !l.InTeam ? L("dh.party.none") : LF(l.Leader ? "dh.party.leader" : "dh.party.member", l.Count, l.Max);
     }
 
     // "· <dungeon> (<difficulty>) · mm:ss", rebuilt only when the clock ticks or the poll replaced the live state.

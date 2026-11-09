@@ -24,6 +24,7 @@ public sealed partial class Plugin : IStellarPlugin
     public Plugin(IPluginServices services)
     {
         _services = services;
+        _loc = services.Localization;   // first: every window / hotkey below reads its text through it (Plugin.Loc.cs)
         _cfg = _services.Config.GetSection("settings");
         LoadWindowOpacity();    // before any window registers: their FrameOpacity / fills read it (Plugin.WindowOpacity.cs)
 
@@ -41,6 +42,8 @@ public sealed partial class Plugin : IStellarPlugin
             IconKey: null,
             OnOpen:  DhOpen)
         { Group = LauncherGroup.Plugin,
+          // Title stays the fixed literal (the pin identity); the tile DISPLAYS the localized name.
+          TitleProvider = () => _loc.T("dh.title"),
           ShouldShow = () => _services.ClientState.Phase == GamePhase.World }));
 
         _services.Log.Info("[DungeonHub] constructed");

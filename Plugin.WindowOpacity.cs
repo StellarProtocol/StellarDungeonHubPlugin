@@ -59,12 +59,12 @@ public sealed partial class Plugin
     }
 
     // Settings → WINDOW panel: the toggle row, and the slider row only while it is on.
-    private HudElement DsWindowPanel() => DcPanel(() => "WINDOW", new SpacerElement(0f, 0f),
-        DsToggleRow("Custom window opacity", "Off = follow the theme's Window Opacity",
+    private HudElement DsWindowPanel() => DcPanel(() => L("dc.set.cap.window"), new SpacerElement(0f, 0f),
+        DsToggleRow("dc.set.opacity.custom", "dc.set.opacity.sub",
             () => _customOpacityOn, () => SetCustomOpacityOn(!_customOpacityOn)),
         new ConditionalElement(() => _customOpacityOn, new RowElement(new HudElement[]
         {
-            new CellElement(DcSmall(() => "Opacity", MutedColor, DcFsBody), Width: DsVolLabelW),
+            new CellElement(DcSmall(() => L("dc.set.opacity"), MutedColor, DcFsBody, DsVolLabelW), Width: DsVolLabelW),
             new CellElement(new SliderElement(() => MathF.Round(_customOpacity * 100f), SetCustomOpacityPct,
                 OpacityMin * 100f, OpacityMax * 100f) { SquareHandle = true, HandleSize = DcSE(14f) }, Weight: 1f),
             new CellElement(DcBold(() => $"{(int)MathF.Round(_customOpacity * 100f)}%", TextColor, DcFsSmall, DsVolValW,

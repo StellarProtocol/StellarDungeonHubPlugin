@@ -20,41 +20,41 @@ public sealed partial class Plugin
     // then the level's lock, what the level allows, and finally the party role (only the leader can start anything).
     private DhBtn DhBtnState(int which)
     {
-        string label = which == 0 ? "Solo" : which == 1 ? "Match" : "Party";
+        string label = L(which == 0 ? "dh.mode.solo" : which == 1 ? "dh.mode.match" : "dh.mode.party");
         var e = DhCur; var live = _dhLive;
         bool member = live.InTeam && !live.Leader;
         if (e == null) return new(false, false, label, "");
         if (DhIsGh(e)) return DhGhBtnState(which, label);   // Guild Hunt: enters like a dungeon (.GuildHunt.cs)
         if (e.IsActivity)
         {
-            if (!e.CanMatch) return new(false, false, label, "not offered");
-            if (live.Matching && DhMatchingThis()) return new(false, true, "Matching…", DhClock());
-            if (e.Locked) return new(false, false, label, "locked");
+            if (!e.CanMatch) return new(false, false, label, L("dh.sub.notOffered"));
+            if (live.Matching && DhMatchingThis()) return new(false, true, L("dh.mode.matching"), DhClock());
+            if (e.Locked) return new(false, false, label, L("dh.sub.locked"));
             // World Boss: only inside its event window (timer 220), never "Open" just because the function is on
             if (DhIsWb(e) && _dhWb is { Open: false }) return new(false, false, label, DhWbClosedSub());
-            if (live.Matching) return new(!member, false, label, member ? "leader only" : "change match");
-            return member ? new(false, false, label, "leader only") : new(true, false, label, "matchmaking");
+            if (live.Matching) return new(!member, false, label, member ? L("dh.sub.leaderOnly") : L("dh.sub.changeMatch"));
+            return member ? new(false, false, label, L("dh.sub.leaderOnly")) : new(true, false, label, L("dh.sub.matchmaking"));
         }
         var lv = DhCurLevel;
-        if (lv == null) return new(false, false, label, "not on this level");
+        if (lv == null) return new(false, false, label, L("dh.sub.notOnLevel"));
         if (live.Matching)
         {
             if (which != 1) return new(false, false, label, "");
-            if (DhMatchingThis()) return new(false, true, "Matching…", DhClock());
-            return member ? new(false, false, label, "leader only") : new(lv.Match && lv.Unlocked, false, label, lv.Match ? "change match" : "not on this level");
+            if (DhMatchingThis()) return new(false, true, L("dh.mode.matching"), DhClock());
+            return member ? new(false, false, label, L("dh.sub.leaderOnly")) : new(lv.Match && lv.Unlocked, false, label, lv.Match ? L("dh.sub.changeMatch") : L("dh.sub.notOnLevel"));
         }
-        if (!lv.Unlocked) return new(false, false, label, "locked");
+        if (!lv.Unlocked) return new(false, false, label, L("dh.sub.locked"));
         switch (which)
         {
             case 0:
-                if (!lv.HasSolo) return new(false, false, label, "not on this level");
-                if (!lv.SoloOk) return new(false, false, label, lv.SoloWhy.Length > 0 ? lv.SoloWhy : "not unlocked yet");
-                return member ? new(false, false, label, "leader only") : new(true, false, label, "with bots");
+                if (!lv.HasSolo) return new(false, false, label, L("dh.sub.notOnLevel"));
+                if (!lv.SoloOk) return new(false, false, label, lv.SoloWhy.Length > 0 ? lv.SoloWhy : L("dh.sub.notUnlocked"));
+                return member ? new(false, false, label, L("dh.sub.leaderOnly")) : new(true, false, label, L("dh.sub.withBots"));
             case 1:
-                if (!lv.Match) return new(false, false, label, "not on this level");
-                return member ? new(false, false, label, "leader only") : new(true, false, label, "matchmaking");
+                if (!lv.Match) return new(false, false, label, L("dh.sub.notOnLevel"));
+                return member ? new(false, false, label, L("dh.sub.leaderOnly")) : new(true, false, label, L("dh.sub.matchmaking"));
             default:
-                return member ? new(false, false, label, "leader only") : new(true, false, label, "with your party");
+                return member ? new(false, false, label, L("dh.sub.leaderOnly")) : new(true, false, label, L("dh.sub.withParty"));
         }
     }
 
@@ -65,7 +65,7 @@ public sealed partial class Plugin
     private HudElement DhDetailPanel() => DhPanelNoCaption(
         DhArtBand(),
         DhNameRow(),
-        DhCaption(() => "DIFFICULTY"),
+        DhCaption(() => L("dh.cap.difficulty")),
         new ConditionalElement(() => _dhTab == DhTabRaid,
             new RowElement(new HudElement[]
             {
@@ -98,11 +98,11 @@ public sealed partial class Plugin
         new CellElement(new ConditionalElement(() => DhIsMaster,
             new ColumnElement(new HudElement[]
             {
-                DhMasterGrid(), DhMasterLegend(), DhInfoTiles(), DhCaption(() => "HOW TO GO"),
+                DhMasterGrid(), DhMasterLegend(), DhInfoTiles(), DhCaption(() => L("dh.cap.howToGo")),
             }, Gap: DhPanGap),
             new ColumnElement(new HudElement[]
             {
-                DhInfoTiles(), DhCaption(() => "HOW TO GO"),
+                DhInfoTiles(), DhCaption(() => L("dh.cap.howToGo")),
             }, Gap: DhPanGap), Fill: true), Width: DhDetInW),
     }, Gap: 0.01f);
 
@@ -111,14 +111,14 @@ public sealed partial class Plugin
     // game's own text (RecommendFightValue is a meaningless 100 there).
     private HudElement DhInfoTiles() => new RowElement(new HudElement[]
     {
-        DhTile(() => "Recommended", () => DhCurLevel switch
+        DhTile(() => L("dh.tile.recommended"), () => DhCurLevel switch
             {
                 { RecText.Length: > 0 } l => l.RecText,
                 { Rec: > 0 } l => DhNum(l.Rec),
                 _ => "—",
             }, () => TextColor(), DhThirdW),
-        DhTile(() => "Your score", () => _dhLive.MyScore > 0 ? DhNum(_dhLive.MyScore) : "—", DhScoreColor, DhThirdMidW),
-        DhTile(() => DhCurLevel?.CounterKey is { Length: > 0 } k ? k : "Rewards left",
+        DhTile(() => L("dh.tile.yourScore"), () => _dhLive.MyScore > 0 ? DhNum(_dhLive.MyScore) : "—", DhScoreColor, DhThirdMidW),
+        DhTile(() => DhCurLevel?.CounterKey is { Length: > 0 } k ? k : L("dh.word.rewardsLeft"),
                () => DhCurLevel?.TileVal is { Length: > 0 } v ? v : "—",
                () => DhCurLevel switch
                {
@@ -136,7 +136,7 @@ public sealed partial class Plugin
     private HudElement DhNameRow() => new RowElement(new HudElement[]
     {
         new SpacerElement(0f, DhNameH),
-        new CellElement(new TextElement(() => (DhCur is { Title.Length: > 0 } t ? t.Title : DhCur?.Name) ?? (_dhHaveCatalog ? "Nothing here yet" : "Reading the game's list…"),
+        new CellElement(new TextElement(() => (DhCur is { Title.Length: > 0 } t ? t.Title : DhCur?.Name) ?? (L(_dhHaveCatalog ? "dh.name.empty" : "dh.name.loading")),
             Color: () => TextColor(), NoWrap: true, FontSize: DhFsTitle) { Bold = true, Ellipsize = true }, Weight: 1f),
     }, Gap: 0.01f);
 
@@ -154,7 +154,8 @@ public sealed partial class Plugin
     // Hero: Normal · Hard · Master ("Master N" while picked; purple text at rest, v4 mock .dc.pi); an Unstable entry has
     // only its own light-blue "Unstable" chip (v5 — the v4 dimmed Unstable chip on regular dungeons is gone).
     // Raid: Easy · Hard · Nightmare, each only when the group has it (a Backtrack group has one chip, labelled "Normal").
-    private static readonly string[] DhHeroDiffs = { "Unstable", "Normal", "Hard" }, DhRaidDiffs = { "Easy", "Hard", "Nightmare" };
+    private static readonly string[] DhHeroDiffs = { "dh.diff.unstable", "dh.diff.normal", "dh.diff.hard" },
+                                     DhRaidDiffs = { "dh.diff.easy", "dh.diff.hard", "dh.diff.nightmare" };   // catalog keys
 
     private ColorRgba DhKindColor(int idx) => _dhTab == DhTabRaid
         ? idx switch { 0 => DhGreen, 1 => DhAmber, _ => DhPurple }
@@ -166,9 +167,9 @@ public sealed partial class Plugin
 
     private string DhChipLabel(int idx)
     {
-        if (_dhTab == DhTabRaid) return DhCur?.Levels[idx]?.Label is { Length: > 0 } l ? l : DhRaidDiffs[Math.Min(idx, 2)];
-        if (idx != DhMasterIdx) return DhHeroDiffs[idx];
-        return DhIsMaster && _dhMasterDiff >= 1 && _dhMasterDiff <= DhMasterLabels.Length ? DhMasterLabels[_dhMasterDiff - 1] : "Master";
+        if (_dhTab == DhTabRaid) return DhCur?.Levels[idx]?.Label is { Length: > 0 } l ? l : L(DhRaidDiffs[Math.Min(idx, 2)]);
+        if (idx != DhMasterIdx) return L(DhHeroDiffs[idx]);
+        return DhIsMaster && _dhMasterDiff >= 1 && _dhMasterDiff <= DhLvCount ? DhMasterLabel(_dhMasterDiff) : L("dh.diff.master");
     }
 
     // Raid chips exist only where the group has that difficulty.
@@ -244,7 +245,7 @@ public sealed partial class Plugin
         new CellElement(new ColumnElement(new HudElement[]
         {
             new TextElement(() => DhBtnState(which).Label, Color: () => text(), Width: w, Align: TextAlign.Center, NoWrap: true,
-                FontSize: DhFsBody) { Bold = true },
+                FontSize: DhFsBody) { Bold = true, Ellipsize = true },
             new TextElement(() => DhBtnState(which).Sub, Color: () => text() with { A = 0.8f }, Width: w - DcSE(12f),
                 Align: TextAlign.Center, NoWrap: true, FontSize: DhFsTiny) { RichEmoji = true, Ellipsize = true },
         }, Gap: 0.01f)),
@@ -265,21 +266,21 @@ public sealed partial class Plugin
         }, Gap: 0.01f),
         new ConditionalElement(() => DhIsWb(DhCur), DhWbTiles(), new RowElement(new HudElement[]
         {
-            DhTile(() => DhCur?.CounterKey is { Length: > 0 } k ? k : "Rewards left",
+            DhTile(() => DhCur?.CounterKey is { Length: > 0 } k ? k : L("dh.word.rewardsLeft"),
                    () => DhCur?.TileVal is { Length: > 0 } v ? v : "—",
                    () => DhCur is { CounterZero: true } ? MutedColor() : TextColor(), DhHalfW),
-            DhTile(() => "Status", () => DhCur is { Locked: true } ? "Locked" : "Open",
+            DhTile(() => L("dh.tile.status"), () => L(DhCur is { Locked: true } ? "dh.word.locked" : "dh.st.open"),
                    () => DhCur is { Locked: true } ? MutedColor() : DhGreen, DhHalfW),
         }, Gap: DhPanGap)),
         new SpacerElement(0f, DhActFiller),
-        DhCaption(() => "GO"),
+        DhCaption(() => L("dh.cap.go")),
         new ConditionalElement(() => DhIsWb(DhCur), DhGoButton(1, DhDetInW, DhOnMatch), new RowElement(new HudElement[]
         {
             new CellElement(new ConditionalElement(() => DhCur is { Locked: false },
-                new BubbleElement(new SelectableElement(DhStaticContent(() => "Open", () => "the game's page",
+                new BubbleElement(new SelectableElement(DhStaticContent(() => L("dh.act.open"), () => L("dh.act.page"),
                         () => EnsureContrast(TextColor(), DcNeutral(), 4.5f), DhHalfW), OnClick: DhOnActivityOpen) { Bare = true })
                     { FillColorFn = () => Fade(DcNeutral()), CornerRadius = DhBtnRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DhHalfW },
-                new BubbleElement(DhStaticContent(() => "Open", () => "locked", () => Mix(PanelColor(), TextColor(), 0.4f), DhHalfW))
+                new BubbleElement(DhStaticContent(() => L("dh.act.open"), () => L("dh.sub.locked"), () => Mix(PanelColor(), TextColor(), 0.4f), DhHalfW))
                     { FillColorFn = () => Fade(Mix(PanelColor(), DcNeutral(), 0.55f)), CornerRadius = DhBtnRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DhHalfW }),
                 Width: DhHalfW),
             // Match only where the game has an activity match (World Boss); otherwise the slot stays empty.
@@ -292,7 +293,7 @@ public sealed partial class Plugin
         new SpacerElement(0f, DhBtnH),
         new CellElement(new ColumnElement(new HudElement[]
         {
-            new TextElement(label, Color: () => text(), Width: w, Align: TextAlign.Center, NoWrap: true, FontSize: DhFsBody) { Bold = true },
+            new TextElement(label, Color: () => text(), Width: w, Align: TextAlign.Center, NoWrap: true, FontSize: DhFsBody) { Bold = true, Ellipsize = true },
             new TextElement(sub, Color: () => text() with { A = 0.8f }, Width: w - DcSE(12f), Align: TextAlign.Center, NoWrap: true,
                 FontSize: DhFsTiny) { RichEmoji = true, Ellipsize = true },
         }, Gap: 0.01f)),

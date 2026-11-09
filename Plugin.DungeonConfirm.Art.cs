@@ -148,8 +148,8 @@ public sealed partial class Plugin
                 () => DcAffixAt(k)?.Label ?? "", () => DcAmber));
         }
         chips[DcMaxAffixes] = new ConditionalElement(() => _dc is { KeyLeft: >= 0 },
-            DcChip(null, () => $"Key: {_dc?.KeyLeft ?? 0} left", () => Menu.MenuAccent));
-        return DcPanel(() => "AFFIXES", DcSmall(() => "", MutedColor),   // hint left empty: the difficulty is the header chip
+            DcChip(null, () => LF("dc.key", _dc?.KeyLeft ?? 0), () => Menu.MenuAccent));
+        return DcPanel(() => L("dc.cap.affixes"), DcSmall(() => "", MutedColor),   // hint left empty: the difficulty is the header chip
             new RowElement(chips, Gap: DcChipGap));
     }
 
@@ -251,7 +251,7 @@ public sealed partial class Plugin
             new SpacerElement(DcPillW - 2f * DcPillPadX, 0f),   // pins the width (centring note above)
             new RowElement(new HudElement[]
             {
-                new SpacerElement(0f, DcPillH), DcDrop(DcBold(() => "Confirmed", DcConfirmedText, DcFsBody)),
+                new SpacerElement(0f, DcPillH), DcDrop(DcBold(() => L("dc.btn.confirmed"), DcConfirmedText, DcFsBody)),
                 new SpacerElement(DcS(3f), 0f),
                 new ImageElement(() => DcGlyphPng(DcGlyph.Check, DcGlyphLW, DcConfirmedText()), (int)DcGlyphLW, (int)DcGlyphLW),
             }, Gap: 0.01f, Justify: RowJustify.Center),

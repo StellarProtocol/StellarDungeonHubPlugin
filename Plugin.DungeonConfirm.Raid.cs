@@ -22,7 +22,7 @@ public sealed partial class Plugin
         DcHeader(),
         DcBar(),
         // Caption by the CONTENT, layout by the team: a 20-person party in a 5-player dungeon is a PARTY (Lua.cs "raidContent").
-        DcPanel(() => _dc?.RaidContent == false ? "PARTY" : "RAID", DcReadyHint(),
+        DcPanel(() => L(_dc?.RaidContent == false ? "dc.cap.party" : "dc.cap.raid"), DcReadyHint(),
             new RowElement(new HudElement[]
             {
                 new CellElement(new ColumnElement(new HudElement[] { DcGroup(0), DcGroup(2) }, Gap: DcPanelGap), Width: DcRaidColW),
@@ -37,7 +37,7 @@ public sealed partial class Plugin
         if (_dc == null) return "";
         if (_dcEnd != DcEnd.None) return DcClosingText();
         int w = _dc.Waiting;
-        return w == 0 ? "" : $"{w} still waiting";
+        return w == 0 ? "" : LF("dc.stillWaiting", w);
     }
 
     private DcMember? DcCell(int cell) =>
@@ -52,7 +52,7 @@ public sealed partial class Plugin
             new RowElement(new HudElement[]
             {
                 new SpacerElement(0f, DcCaptionH),
-                DcBold(() => $"GROUP {g + 1}", MutedColor, DcFsSmall),
+                DcBold(() => LF("dc.cap.group", g + 1), MutedColor, DcFsSmall),
                 new SpacerElement(0f),
                 DcSmall(() => DcGroupHint(g), MutedColor),
             }, Gap: 0.01f),

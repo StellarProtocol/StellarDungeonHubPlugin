@@ -246,9 +246,10 @@ public sealed partial class Plugin
         DcRefreshSoundList(force: false);
         string cur = DcSoundFile(tick);
         var key = (_dcSoundListVer, cur);
-        if (tick ? _dcOptsTick != null && _dcOptsTickKey == key : _dcOptsOpen != null && _dcOptsOpenKey == key)
-            return tick ? _dcOptsTick! : _dcOptsOpen!;
-        var opts = new List<string>(_dcSoundNames.Count + 2) { "Default" };
+        var have = tick ? _dcOptsTick : _dcOptsOpen;
+        // [0] = the localized "Default": a language switch rebuilds the list too (L returns the catalog's own instance)
+        if (have != null && (tick ? _dcOptsTickKey : _dcOptsOpenKey) == key && ReferenceEquals(have[0], L("dc.set.default"))) return have;
+        var opts = new List<string>(_dcSoundNames.Count + 2) { L("dc.set.default") };
         opts.AddRange(_dcSoundNames);
         if (cur.Length > 0 && !DcSoundListed(cur)) opts.Add(cur);
         if (tick) { _dcOptsTick = opts; _dcOptsTickKey = key; } else { _dcOptsOpen = opts; _dcOptsOpenKey = key; }

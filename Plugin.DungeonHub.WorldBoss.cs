@@ -65,18 +65,17 @@ public sealed partial class Plugin
         int s = Math.Max(0, (int)(w.Before - Math.Max(0, DcNow - w.At)));
         if (s == _dhWbCdSec) return _dhWbCd;
         _dhWbCdSec = s;
-        int d = s / 86400, h = s % 86400 / 3600, m = s % 3600 / 60, sec = s % 60;
-        return _dhWbCd = d > 0 ? $"{d}d {h}h {m:00}m" : h > 0 ? $"{h}h {m:00}m" : m > 0 ? $"{m}m {sec:00}s" : $"{sec}s";
+        return _dhWbCd = DhDur(s);   // Plugin.Loc.cs
     }
 
     // Open · Closed (a next start is known) · Ended (left <= 0, the page's ActivityHasEnd) · Closed (neither).
     private string DhWbStatus() => _dhWb switch
     {
         null => "—",
-        { Open: true } => "Open",
-        { Before: > 0 } => "Closed",
-        { Left: <= 0 } => "Ended",
-        _ => "Closed",
+        { Open: true } => L("dh.st.open"),
+        { Before: > 0 } => L("dh.st.closed"),
+        { Left: <= 0 } => L("dh.st.ended"),
+        _ => L("dh.st.closed"),
     };
 
     private ColorRgba DhWbStatusColor() => _dhWb switch
@@ -92,39 +91,39 @@ public sealed partial class Plugin
     {
         var w = _dhWb;
         if (w == null) return e.SubText;
-        if (w.Open) return e.SubText.Length > 0 ? $"Open · {e.SubText}" : "Open";
-        if (w.Before > 0) return $"Closed · starts in {DhWbCountdown()}";
-        return w.Left <= 0 ? "Ended" : "Closed";
+        if (w.Open) return e.SubText.Length > 0 ? LF("dh.row.open", e.SubText) : L("dh.st.open");
+        if (w.Before > 0) return LF("dh.row.closedIn", DhWbCountdown());
+        return L(w.Left <= 0 ? "dh.st.ended" : "dh.st.closed");
     }
 
     private string DhWbClosedSub()
     {
         var w = _dhWb;
-        if (w == null) return "closed";
-        if (w.Before > 0) return $"starts in {DhWbCountdown()}";
-        return w.Left <= 0 ? "ended" : "closed";
+        if (w == null) return L("dh.sub.closed");
+        if (w.Before > 0) return LF("dh.sub.startsIn", DhWbCountdown());
+        return L(w.Left <= 0 ? "dh.sub.ended" : "dh.sub.closed");
     }
 
     private string DhWbClosedNotice() => _dhWb is { Opens.Length: > 0 } w
-        ? $"World Boss is closed · opens {w.Opens}" : "World Boss is closed";
+        ? LF("dh.wb.closedOpens", w.Opens) : L("dh.wb.closed");
 
     // ── detail panel bits ─────────────────────────────────────────────────────────────────────────────────────────
     // "This week: <boss>" under the title (empty on the other activity tabs — same height, so nothing moves).
     private string DhActSubLine()
     {
         var e = DhCur;
-        return DhIsWb(e) && _dhWb is { Boss.Length: > 0 } w ? $"This week: {w.Boss}" : "";
+        return DhIsWb(e) && _dhWb is { Boss.Length: > 0 } w ? LF("dh.wb.thisWeek", w.Boss) : "";
     }
 
     // Rewards left · Status (the event timer) · Opens (the game's own open-time text).
     private HudElement DhWbTiles() => new RowElement(new HudElement[]
     {
-        DhTile(() => DhCur?.CounterKey is { Length: > 0 } k ? k : "Rewards left",
+        DhTile(() => DhCur?.CounterKey is { Length: > 0 } k ? k : L("dh.word.rewardsLeft"),
                () => DhCur?.TileVal is { Length: > 0 } v ? v : "—",
                () => DhCur is { CounterZero: true } ? MutedColor() : TextColor(), DhThirdW),
-        DhTile(() => "Status", () => DhCur is { Locked: true } ? "Locked" : DhWbStatus(),
+        DhTile(() => L("dh.tile.status"), () => DhCur is { Locked: true } ? L("dh.word.locked") : DhWbStatus(),
                () => DhCur is { Locked: true } ? MutedColor() : DhWbStatusColor(), DhThirdMidW),
-        DhTile(() => "Opens", () => _dhWb is { Opens.Length: > 0 } w ? w.Opens : "—", () => TextColor(), DhThirdW),
+        DhTile(() => L("dh.tile.opens"), () => _dhWb is { Opens.Length: > 0 } w ? w.Opens : "—", () => TextColor(), DhThirdW),
     }, Gap: DhPanGap);
 
     // ── actions ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -149,7 +148,7 @@ public sealed partial class Plugin
         var res = _services.Lua.ReadGlobalString("__stellarDHOpen") ?? "(no result)";
         _services.Log.Info($"[DungeonHub] {what}: {res}");
         if (res == "NO closed") DhSetNotice(DhWbClosedNotice());
-        else if (res == "NO leader") DhSetNotice("World Boss: only the party leader can start the match");
+        else if (res == "NO leader") DhSetNotice(L("dh.wb.leaderOnly"));
         _dhFullDue = true;
     }
 

@@ -41,10 +41,11 @@ public sealed partial class Plugin
     private void InitDungeonHub()
     {
         _dhTab = Math.Clamp(_cfg.Get<int>("dungeon_hub_tab", 0), 0, DhTabCount - 1);
+        DhBuildLiveText();       // the header / bar texts before the first poll ("Solo", "Not in a party")
         _dhWin = DhRegister();   // Plugin.DungeonHub.Window.cs
         // Registered UNBOUND (null default key) — rebindable in the hotkey settings, the user assigns the key.
         _dhHotkey = _services.Hotkeys.DeclareAction(
-            new HotkeyAction("dungeonhub.hub-toggle", "Toggle Dungeon Hub window", null),
+            new HotkeyAction("dungeonhub.hub-toggle", L("dh.hotkey.toggle"), null),
             callback: () => { if (_services.ClientState.Phase == GamePhase.World) { if (_dhShow) DhHide(); else DhOpen(); } });
         _services.ClientState.Logout += OnDhLogout;
         _dhTick = _services.Framework.Every(TimeSpan.FromSeconds(DhPollSec), DhTick);
@@ -52,7 +53,7 @@ public sealed partial class Plugin
         // dungeons_v2b.png). The framework only injects the rail in-world; the phase check mirrors the hotkey anyway.
         // Click always OPENS (DhOpen fronts an already-visible hub) — the Esc menu may stay up behind it.
         _dhRailButton = _services.NativeUi.Register(new MenuButtonSpec(
-            NativeUiAnchor.MainMenuRail, "Dungeon Hub", IconKey: null, Tooltip: "Open Dungeon Hub",
+            NativeUiAnchor.MainMenuRail, L("dh.title"), IconKey: null, Tooltip: L("dh.rail.tooltip"),
             OnClick: () => { if (_services.ClientState.Phase == GamePhase.World) DhOpen(); },
             IconPng: CachedPng("dungeons-esc-icon.png")));
     }
