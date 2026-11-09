@@ -1,75 +1,98 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
-using Stellar.Abstractions.Domain;
-using Stellar.Abstractions.Services;
 
 namespace Stellar.DungeonHub;
 
-// Dungeon Confirm — our own sounds, replacing the game's MatchAudio cue (no longer played, .Lua.cs). Two user-approved
-// embedded WAVs (44.1 kHz stereo 16-bit): dc_enter (3.05 s boom) once when the window opens for a REAL request, and
-// dc_tick (0.97 s beep) on each countdown second 10..1 while I still have to answer. Preview opens stay silent (the
-// Test button covers sound).
+// Dungeon Confirm — our own sounds, replacing the game's MatchAudio cue (no longer played, .Lua.cs). Defaults = two
+// user-approved embedded WAVs (44.1 kHz stereo 16-bit): dc_enter (3.05 s boom) when the window opens for a REAL request,
+// and dc_tick (0.97 s beep) on each countdown second 10..1 while I still have to answer. Either can be swapped for the
+// user's own .wav / .mp3 (.SoundFiles.cs). Previews sound exactly like a real request (open sound + the last-10 s
+// ticks, same toggles / files / volume). Replace OFF = silent everywhere: the sounds belong to the replacement window.
 //
-// Playback = a dedicated MechAudioPlayer (winmm PlaySound, in-memory WAV, own background thread — Mechanic-Callouts.md
-// "Local audio"). winmm ignores the game's mixer, so it is heard with the game muted or in the background; that's the
-// point, don't route it through Z.AudioMgr. MinGapMs = 0: the player's queue is serial, so two ticks never overlap (a
-// tick due while the previous one's last ~30 ms still plays just waits for it).
+// Playback = DcMixer (winmm waveOut + a small software mixer on its own thread). winmm ignores the game's mixer, so it is
+// heard with the game muted or in the background; that's the point, don't route it through Z.AudioMgr. One voice per
+// tag: a new play REPLACES that tag's voice (a long custom tick file never stacks under the next second's tick), while
+// the other tags keep playing — the open sound and the ticks MIX. (The first version used PlaySound, which has one
+// voice per process: a long custom open sound swallowed every tick.)
 //
-// Volume: the decoded PCM is kept; the two WAV images are rebuilt with the volume baked into the samples
-// (MechAudioPlayer.BuildWav) the first time a sound is needed after the volume changed — never per play, and not on
-// every slider drag step. Volume 0 = nothing is played at all.
+// The open sound plays until the window closes or I answer (Confirm / Decline / an end state) — a long custom file is
+// cut then (DcSoundStopAll). Ticks play on top of it.
+//
+// Volume: the decoded PCM is kept; the mixer clip is rebuilt with the volume baked in and converted to the mixer format
+// (DcMixer.Convert) the first time a sound is needed after the volume / file changed — one clip per slot (open, tick),
+// never per play. Volume 0 = nothing is played at all.
+//
+// Threads: DcWavFor(mayDecode: false) is the main-thread path — CACHE ONLY, it never decodes or builds a clip (not even
+// the embedded defaults). Anything missing goes to a short background thread (DcPlay), which only starts the sound if
+// no Stop for that tag happened meanwhile (per-tag generation counters). DcWarmAll pre-builds both slots off-thread at
+// startup and after every volume / file change, so a real play is always a cache hit. DcMixer.Play/Stop only touch its
+// voice list: winmm is called from its own thread alone (a main-thread winmm call blocked until the previous tick
+// finished — the 2026-11-08 growing tick hitch).
 //
 // Tick timing: a 50 ms Every (main thread, arithmetic only) takes s = ceil(remaining) — exactly the number the window's
-// timer shows (DcTimerText) — and ticks when s is 1..10 and lower than the last ticked second. A second that is due while
-// the entry sound is still queued/playing (a late open) is SKIPPED, not delayed. Ticks stop (queued dropped, current cut)
-// as soon as I no longer need to act: answered, an end state, or the window hidden (hide also cuts the entry sound).
+// timer shows (DcTimerText) — and ticks when s is 1..10 and lower than the last ticked second.
 public sealed partial class Plugin
 {
-    private const string DcTagEnter = "dc_enter", DcTagTick = "dc_tick";
+    private const string DcTagEnter = "dc_enter", DcTagTick = "dc_tick", DcTagTest = "dc_test";
 
-    private MechAudioPlayer _dcAudio = null!;
+    private DcMixer _dcAudio = null!;
     private IDisposable? _dcSoundTimer;
     private bool _dcSoundOpen, _dcSoundTicks;
     private int  _dcSoundVolume;              // 0..100
+    private string _dcOpenFile = "", _dcTickFile = "";   // "" = Default (embedded)
     private int  _dcLastTick = int.MaxValue;  // last countdown second ticked for the request on screen
-    private volatile bool _dcTestRunning, _dcSoundDisposed, _dcSoundBroken;   // Broken: the embedded WAVs failed to load
+    private volatile bool _dcSoundDisposed, _dcSoundBroken;   // Broken: the embedded WAVs failed to load
+    private volatile int _dcGenEnter, _dcGenTick, _dcGenTest;  // bumped by a Stop: a pending background play is dropped
 
-    private readonly object _dcWavLock = new();   // the test thread and the main thread both build buffers
-    private DecodedAudio? _dcPcmEnter, _dcPcmTick;
-    private byte[]? _dcWavEnter, _dcWavTick;
-    private int _dcWavVolume = -1;                // the volume the two images were built with
+    private readonly object _dcWavLock = new();
+    private volatile DecodedAudio? _dcPcmEnter, _dcPcmTick;   // written once off-thread; the main thread only peeks
+    private int _dcWarming; private volatile bool _dcWarmAgain;    // DcWarmAll coalescing
+
+    private sealed class DcWavSlot { public DecodedAudio? Pcm; public int Vol = -1; public short[]? Wav; }
+    private readonly DcWavSlot _dcSlotOpen = new(), _dcSlotTick = new();
+    private static readonly short[] DcPending = new short[0];   // "needs a background build" sentinel (own instance: compared by reference)
 
     private void InitDcSound()
     {
         _dcSoundOpen   = _cfg.Get<bool>("dungeon_confirm_sound_open", true);
         _dcSoundTicks  = _cfg.Get<bool>("dungeon_confirm_sound_ticks", true);
         _dcSoundVolume = Math.Clamp(_cfg.Get<int>("dungeon_confirm_sound_volume", 80), 0, 100);
-        _dcAudio = new MechAudioPlayer(s => _services.Framework.Post(() => _services.Log.Info("[DungeonConfirm][Sound] " + s)))
-            { MinGapMs = 0, MaxPending = 4 };
+        _dcOpenFile    = _cfg.Get<string>("dungeon_confirm_sound_open_file", "") ?? "";
+        _dcTickFile    = _cfg.Get<string>("dungeon_confirm_sound_tick_file", "") ?? "";
+        _dcAudio = new DcMixer(s => _services.Framework.Post(() => _services.Log.Info("[DungeonConfirm][Sound] " + s)));
         _dcSoundTimer = _services.Framework.Every(TimeSpan.FromMilliseconds(50), DcSoundTick);
+        DcRefreshSoundList(force: true);   // README + folder (.SoundFiles.cs)
+        DcWarmAll();                       // decode + bake both slots now, so the first open / tick plays at once
     }
 
     private void DisposeDcSound()
     {
-        _dcSoundDisposed = true;   // ends a running Test sequence
+        _dcSoundDisposed = true;
         _dcSoundTimer?.Dispose();
-        _dcAudio?.Stop();
+        DcSoundStopAll();
         _dcAudio?.Dispose();
     }
 
-    // Called once per request, on its first show (DcApplySnap — never for Preview, re-polls or re-centres).
+    private string DcSoundFile(bool tick) => tick ? _dcTickFile : _dcOpenFile;
+
+    // Called once per request, on its first show (DcApplySnap — never on re-polls or re-centres) and once per Preview
+    // open (DcStartPreview).
     private void DcSoundOnOpen()
     {
         _dcLastTick = int.MaxValue;
-        if (_dcSoundOpen && DcSoundBuffers() is { } b) _dcAudio.PlayWav(b.Enter, DcTagEnter);
+        if (!_dcSoundOpen || !_dcReplace) return;
+        DcPlay(false, DcTagEnter);
     }
 
-    private void DcSoundStopTicks() => _dcAudio?.Stop(DcTagTick);
-    private void DcSoundStopAll()   => _dcAudio?.Stop();
+    private void DcSoundStopTicks() { _dcGenTick++; _dcAudio?.Stop(DcTagTick); }
+    private void DcSoundStopAll()   { _dcGenEnter++; _dcGenTick++; _dcGenTest++; _dcAudio?.Stop(); }
 
     // I still have to act: team = a member (never the leader) who hasn't confirmed/declined; match = until I answer.
-    private bool DcNeedsMyAnswer => _dc != null && !_dcPreview && _dcEnd == DcEnd.None && !_dcConfirmed &&
+    // SOUND ONLY (ticks): a Preview counts too — its fake "me" is an unanswered member and its countdown runs, so it
+    // ticks the last 10 s like a real request; its buttons only close (DcHide stops everything).
+    private bool DcNeedsMyAnswer => _dc != null && _dcReplace && _dcEnd == DcEnd.None && !_dcConfirmed &&
         (_dcShow5 || _dcShowRaid) && (_dc.Match ? !_dcMatchDeclined : !_dc.IAmLeader) && _dc.Me is not { Ready: not 0 };
 
     private void DcSoundTick()
@@ -79,35 +102,103 @@ public sealed partial class Plugin
         int s = (int)Math.Ceiling(DcRemaining);
         if (s < 1 || s > 10 || s >= _dcLastTick) return;
         _dcLastTick = s;                                       // this second is spent, played or skipped
-        if (!_dcSoundTicks || _dcAudio.IsBusyWith(DcTagEnter)) return;   // late open: boom still going → skip
-        if (DcSoundBuffers() is { } b) _dcAudio.PlayWav(b.Tick, DcTagTick);
+        if (!_dcSoundTicks) return;                            // mixes over a still-playing open sound
+        DcPlay(true, DcTagTick);
     }
 
-    // The two WAV images at the current volume; null when the volume is 0 or the resources failed to load. Any thread.
-    private (byte[] Enter, byte[] Tick)? DcSoundBuffers()
+    // Plays the open (tick = false) or tick sound under `tag`. Ready image → now; otherwise decode / bake on a short
+    // background thread and start it there, unless a Stop for the tag came first.
+    private void DcPlay(bool tick, string tag)
     {
-        int vol = _dcSoundVolume;
-        if (vol <= 0 || _dcSoundBroken) return null;
-        lock (_dcWavLock)
+        var wav = DcWavFor(tick, mayDecode: false);
+        if (wav == null) return;
+        if (wav != DcPending) { DcStart(tag, wav); return; }
+        int gen = DcGen(tag);
+        new Thread(() =>
         {
             try
             {
-                _dcPcmEnter ??= DcLoadWav("dc_enter.wav");
-                _dcPcmTick  ??= DcLoadWav("dc_tick.wav");
-                if (_dcWavVolume != vol || _dcWavEnter == null || _dcWavTick == null)
-                {
-                    _dcWavEnter = MechAudioPlayer.BuildWav(_dcPcmEnter, vol / 100f);
-                    _dcWavTick  = MechAudioPlayer.BuildWav(_dcPcmTick,  vol / 100f);
-                    _dcWavVolume = vol;
-                }
-                return (_dcWavEnter, _dcWavTick);
+                var w = DcWavFor(tick, mayDecode: true);
+                if (w != null && w != DcPending && gen == DcGen(tag) && !_dcSoundDisposed) DcStart(tag, w);
             }
-            catch (Exception ex)
+            catch (Exception ex) { DcSoundLog("play failed: " + ex.Message); }
+        }) { IsBackground = true, Name = "DungeonHub.DcSoundLoad" }.Start();
+    }
+
+    private int DcGen(string tag) => tag == DcTagEnter ? _dcGenEnter : tag == DcTagTick ? _dcGenTick : _dcGenTest;
+
+    // Replaces the tag's previous voice (long files never stack); other tags keep playing.
+    private void DcStart(string tag, short[] clip) => _dcAudio.Play(tag, clip);
+
+    // Decode + bake both slots (chosen file or default, current volume) in the background — startup, file pick, volume
+    // change — so playback finds them cached. One worker at a time; a request while it runs makes it go round again
+    // (a volume drag = many calls, a handful of builds).
+    private void DcWarmAll()
+    {
+        _dcWarmAgain = true;
+        if (Interlocked.Exchange(ref _dcWarming, 1) == 1) return;
+        new Thread(() =>
+        {
+            try
             {
-                _services.Framework.Post(() => _services.Log.Warning("[DungeonConfirm][Sound] load failed: " + ex.Message));
-                _dcSoundBroken = true;   // logged once; no retry on every tick
-                return null;
+                while (_dcWarmAgain && !_dcSoundDisposed)
+                {
+                    _dcWarmAgain = false;
+                    try { DcWavFor(false, mayDecode: true); DcWavFor(true, mayDecode: true); } catch { }
+                }
             }
+            finally { Volatile.Write(ref _dcWarming, 0); }
+            if (_dcWarmAgain && !_dcSoundDisposed) DcWarmAll();   // a request slipped in after the last round
+        }) { IsBackground = true, Name = "DungeonHub.DcSoundWarm" }.Start();
+    }
+
+    // The WAV image for a slot at the current volume. null = nothing to play (volume 0 / defaults broken); DcPending =
+    // mayDecode was false and a decode or a big image build is needed. A custom file that is missing or fails to decode
+    // falls back to the slot's default sound.
+    private short[]? DcWavFor(bool tick, bool mayDecode)
+    {
+        int vol = _dcSoundVolume;
+        if (vol <= 0) return null;
+        string name = DcSoundFile(tick);
+        DecodedAudio? pcm = null;
+        if (name.Length > 0 && !DcPeekPcm(name, out pcm))
+        {
+            if (!mayDecode) return DcPending;
+            pcm = DcDecodeCustom(name);
+        }
+        if (pcm == null)
+        {
+            if (_dcSoundBroken) return null;
+            pcm = tick ? _dcPcmTick : _dcPcmEnter;            // peek: the main thread never loads the embedded WAV
+            if (pcm == null && !mayDecode) return DcPending;
+            pcm ??= DcDefaultPcm(tick);
+            if (pcm == null) return null;
+        }
+        var slot = tick ? _dcSlotTick : _dcSlotOpen;
+        lock (slot) if (slot.Pcm == pcm && slot.Vol == vol && slot.Wav != null) return slot.Wav;
+        if (!mayDecode) return DcPending;                     // never bake on the main thread
+        var wav = DcMixer.Convert(pcm, vol / 100f);
+        lock (slot) { slot.Pcm = pcm; slot.Vol = vol; slot.Wav = wav; }
+        return wav;
+    }
+
+    private DecodedAudio? DcDefaultPcm(bool tick)
+    {
+        if (_dcSoundBroken) return null;
+        var have = tick ? _dcPcmTick : _dcPcmEnter;
+        if (have != null) return have;
+        try
+        {
+            // Decoded OUTSIDE _dcWavLock (the main thread takes it in DcSoundProblem / DcPeekPcm); two background
+            // threads racing here both decode the same bytes, and the first stored copy wins.
+            var pcm = DcLoadWav(tick ? "dc_tick.wav" : "dc_enter.wav");
+            lock (_dcWavLock) return tick ? _dcPcmTick ??= pcm : _dcPcmEnter ??= pcm;
+        }
+        catch (Exception ex)
+        {
+            if (!_dcSoundBroken) DcSoundLog("default sound failed to load: " + ex.Message);
+            _dcSoundBroken = true;   // logged once; no retry on every tick
+            return null;
         }
     }
 
@@ -120,58 +211,56 @@ public sealed partial class Plugin
         return AudioDecoder.DecodeWavBytes(ms.ToArray());
     }
 
-    // Test: the entry sound, wait for it to end, then 3 ticks 1 s apart — on a background thread; extra clicks while it
-    // runs are ignored.
-    private void DcSoundTest()
-    {
-        if (_dcTestRunning) return;
-        _dcTestRunning = true;
-        new Thread(() =>
-        {
-            try
-            {
-                if (DcSoundBuffers() is not { } b) return;
-                _dcAudio.PlayWav(b.Enter, DcTagEnter);
-                while (!_dcSoundDisposed && _dcAudio.IsBusyWith(DcTagEnter)) Thread.Sleep(20);
-                for (int i = 0; i < 3 && !_dcSoundDisposed; i++) { _dcAudio.PlayWav(b.Tick, DcTagTick); Thread.Sleep(1000); }
-            }
-            catch { }
-            finally { _dcTestRunning = false; }
-        }) { IsBackground = true, Name = "DungeonHub.DcSoundTest" }.Start();
-    }
-
+    // ── settings hooks (.DungeonConfirm.Settings.cs) ─────────────────────────────────────────────────────────────
     private void SetDcSoundBool(string key, bool v, Action<bool> apply) { apply(v); _cfg.Set<bool>(key, v); _cfg.Save(); }
 
-    // Settings rows (Dungeon Confirm settings window, under the replace toggle).
-    private HudElement BuildDcSoundRows() => new ColumnElement(new HudElement[]
+    private void SetDcSoundVolume(float v)
     {
-        DcToggleRow("Play a sound when it opens", () => _dcSoundOpen,
-            v => SetDcSoundBool("dungeon_confirm_sound_open", v, x => _dcSoundOpen = x)),
-        DcToggleRow("Countdown ticks (last 10 s)", () => _dcSoundTicks,
-            v => SetDcSoundBool("dungeon_confirm_sound_ticks", v, x => { _dcSoundTicks = x; if (!x) DcSoundStopTicks(); })),
-        DcSliderRow("Sound volume", () => _dcSoundVolume, v =>
-        {
-            _dcSoundVolume = (int)Math.Round(v);
-            _cfg.Set<int>("dungeon_confirm_sound_volume", _dcSoundVolume); _cfg.Save();
-        }, 0f, 100f, () => $"{_dcSoundVolume}%", labelWidth: 100f),
-        new ButtonElement(Label: () => _dcTestRunning ? "Testing..." : "Test sound", OnClick: DcSoundTest, Width: 180f),
-    }, Gap: 8f);
+        _dcSoundVolume = (int)Math.Round(Math.Clamp(v, 0f, 100f));
+        _cfg.Set<int>("dungeon_confirm_sound_volume", _dcSoundVolume); _cfg.Save();
+        DcWarmAll();   // re-bake both images at the new volume off-thread (the next play would otherwise go the slow path)
+    }
 
-    // Capsule toggle + sibling label (ToggleElement is capsule-only — WindowBuilder-Patterns.md). Copied from
-    // Experiment's MechToggleRow / MechSliderRow (Mechanic Callouts), which this window used while it lived there.
-    private static HudElement DcToggleRow(string label, Func<bool> get, Action<bool> set) =>
-        new RowElement(new HudElement[]
-        {
-            new ToggleElement(Label: () => "", Get: get, Set: set),
-            new TextElement(() => label),
-        }, Gap: 6f);
+    // ▶ next to a dropdown: that one sound, once, at the current volume (toggles ignored — it's an explicit preview).
+    private void DcSoundPreview(bool tick) { if (_dcReplace) DcPlay(tick, DcTagTest); }   // the button is inert when OFF too
 
-    private HudElement DcSliderRow(string label, Func<float> get, Action<float> set, float min, float max, Func<string> value,
-        float labelWidth = 60f) =>
-        new RowElement(new HudElement[]
-        {
-            new CellElement(new TextElement(() => label, Color: () => (ColorRgba?)_services.Theme.Colors.TextMuted), Width: labelWidth),
-            new CellElement(new SliderElement(Get: get, Set: v => set(Math.Clamp(v, min, max)), Min: min, Max: max), Weight: 1f),
-            new CellElement(new TextElement(value), Width: 56f),
-        }, Gap: 6f);
+    // Dropdown options: "Default", every listed file, and the saved choice even when it is gone (so the caption still
+    // names it while the yellow note explains). Rebuilt only when the list or the choice changed — the same instance
+    // is handed back on every poll otherwise.
+    private IReadOnlyList<string>? _dcOptsOpen, _dcOptsTick;
+    private (int ver, string cur) _dcOptsOpenKey = (-1, ""), _dcOptsTickKey = (-1, "");
+
+    private IReadOnlyList<string> DcSoundOptions(bool tick)
+    {
+        DcRefreshSoundList(force: false);
+        string cur = DcSoundFile(tick);
+        var key = (_dcSoundListVer, cur);
+        var have = tick ? _dcOptsTick : _dcOptsOpen;
+        // [0] = the localized "Default": a language switch rebuilds the list too (L returns the catalog's own instance)
+        if (have != null && (tick ? _dcOptsTickKey : _dcOptsOpenKey) == key && ReferenceEquals(have[0], L("dc.set.default"))) return have;
+        var opts = new List<string>(_dcSoundNames.Count + 2) { L("dc.set.default") };
+        opts.AddRange(_dcSoundNames);
+        if (cur.Length > 0 && !DcSoundListed(cur)) opts.Add(cur);
+        if (tick) { _dcOptsTick = opts; _dcOptsTickKey = key; } else { _dcOptsOpen = opts; _dcOptsOpenKey = key; }
+        return opts;
+    }
+
+    private int DcSoundSelected(bool tick)
+    {
+        string cur = DcSoundFile(tick);
+        if (cur.Length == 0) return 0;
+        var opts = DcSoundOptions(tick);
+        for (int i = 1; i < opts.Count; i++) if (string.Equals(opts[i], cur, StringComparison.OrdinalIgnoreCase)) return i;
+        return 0;
+    }
+
+    private void DcSoundPick(bool tick, int index)
+    {
+        var opts = DcSoundOptions(tick);
+        string name = index <= 0 || index >= opts.Count ? "" : opts[index];
+        if (tick) { _dcTickFile = name; _cfg.Set<string>("dungeon_confirm_sound_tick_file", name); }
+        else      { _dcOpenFile = name; _cfg.Set<string>("dungeon_confirm_sound_open_file", name); }
+        _cfg.Save();
+        DcWarmAll();    // decode now: a broken file shows its note right away, a good one plays instantly later
+    }
 }

@@ -22,11 +22,13 @@ namespace Stellar.DungeonHub;
 //   counter the page's own raw read: CounterTable.Limit - CharSerialize.counterList.counterMap[id].counter.
 //   fallback unexpected chunk data, or a non-zero server code → union:EnterUnionSceneHunt() (walks / teleports to the hunt
 //           NPC in the guild scene; refuses with tips 1000593/1000594/100124/1000555, union_vm.lua:1555-1592). Logged.
-// G record (every poll, after W): inGuild, open, left, before, actRem, actLim, art, (id, rec, rem, lim) × 2.
+// G record (every poll, after W): inGuild, open, left, before, actRem, actLim, art, (id, rec, rem, lim) × 2,
+//   recIbs × 2 (Normal, Hard: the row's SeasonLv[3] via the poll's ibsOf, 0 = none → the tile shows the AS alone).
 public sealed partial class Plugin
 {
     private const int DhGhFunc = 500151;
-    private static readonly string[] DhGhDiffs = { "Normal", "Hard" };
+    private static readonly string[] DhGhDiffs = { "Normal", "Hard" };          // log names; the chips show DhGhDiffKeys
+    private static readonly string[] DhGhDiffKeys = { "dh.diff.normal", "dh.diff.hard" };
 
     private sealed class DhGhState
     {
@@ -34,7 +36,7 @@ public sealed partial class Plugin
         public int Left, Before, ActRem, ActLim;
         public double At;                      // DcNow of the poll (the countdown ticks locally from there)
         public string Art = "";
-        public readonly int[] Ids = new int[2], Rec = new int[2], Rem = new int[2], Lim = new int[2];
+        public readonly int[] Ids = new int[2], Rec = new int[2], Rem = new int[2], Lim = new int[2], Ibs = new int[2];
     }
 
     private DhGhState? _dhGh;
@@ -55,6 +57,7 @@ public sealed partial class Plugin
         {
             g.Ids[i] = DcInt(f[8 + 4 * i]); g.Rec[i] = DcInt(f[9 + 4 * i]);
             g.Rem[i] = DcInt(f[10 + 4 * i]); g.Lim[i] = DcInt(f[11 + 4 * i]);
+            if (f.Length > 16 + i) g.Ibs[i] = DcInt(f[16 + i]);
         }
         _dhGh = g;
         string sig = $"guild={g.InGuild} open={g.Open} ids={g.Ids[0]},{g.Ids[1]} rewards={g.ActRem}/{g.ActLim} " +
@@ -75,14 +78,13 @@ public sealed partial class Plugin
         int s = Math.Max(0, (int)(g.Before - Math.Max(0, DcNow - g.At)));
         if (s == _dhGhCdSec) return _dhGhCd;
         _dhGhCdSec = s;
-        int d = s / 86400, h = s % 86400 / 3600, m = s % 3600 / 60, sec = s % 60;
-        return _dhGhCd = d > 0 ? $"{d}d {h}h {m:00}m" : h > 0 ? $"{h}h {m:00}m" : m > 0 ? $"{m}m {sec:00}s" : $"{sec}s";
+        return _dhGhCd = DhDur(s);   // Plugin.Loc.cs
     }
 
     private bool DhGhClosed => _dhGh is { Open: false };
-    private string DhGhStartsIn() => _dhGh is { Open: false, Before: > 0 } ? $"starts in {DhGhCountdown()}" : "";
-    private string DhGhClosedSub() => DhGhStartsIn() is { Length: > 0 } s ? s : "closed";
-    private string DhGhClosedNotice() => DhGhStartsIn() is { Length: > 0 } s ? $"Guild Hunt is closed · {s}" : "Guild Hunt is closed";
+    private string DhGhStartsIn() => _dhGh is { Open: false, Before: > 0 } ? LF("dh.sub.startsIn", DhGhCountdown()) : "";
+    private string DhGhClosedSub() => DhGhStartsIn() is { Length: > 0 } s ? s : L("dh.sub.closed");
+    private string DhGhClosedNotice() => _dhGh is { Open: false, Before: > 0 } ? LF("dh.gh.closedIn", DhGhCountdown()) : L("dh.gh.closed");
     private string DhGhRewards() => _dhGh is { ActLim: > 0 } g ? $"{g.ActRem} / {g.ActLim}" : "";
 
     // List sub-line: Not in a guild · Open · Rewards left x / 2 · Closed · starts in … ("Locked" comes first, DhRowSub).
@@ -90,9 +92,9 @@ public sealed partial class Plugin
     {
         var g = _dhGh;
         if (g == null) return e.SubText;
-        if (!g.InGuild) return "Not in a guild";
-        if (g.Open) return DhGhRewards() is { Length: > 0 } r ? $"Open · Rewards left {r}" : "Open";
-        return g.Before > 0 ? $"Closed · {DhGhStartsIn()}" : "Closed";
+        if (!g.InGuild) return L("dh.gh.notInGuild");
+        if (g.Open) return DhGhRewards() is { Length: > 0 } r ? LF("dh.row.open", LF("dh.counter", r)) : L("dh.st.open");
+        return g.Before > 0 ? LF("dh.row.closedIn", DhGhCountdown()) : L("dh.st.closed");
     }
 
     // Solo / Party send the same call (the game has no solo/team choice here: selectType nil); Solo = not in a party,
@@ -100,15 +102,15 @@ public sealed partial class Plugin
     private DhBtn DhGhBtnState(int which, string label)
     {
         var e = DhCur; var live = _dhLive; var g = _dhGh;
-        if (which == 1) return new(false, false, label, "not for Guild Hunt");
+        if (which == 1) return new(false, false, label, L("dh.sub.notForGh"));
         if (e == null || g == null) return new(false, false, label, "");
-        if (e.Locked) return new(false, false, label, "locked");
-        if (!g.InGuild) return new(false, false, label, "not in a guild");
+        if (e.Locked) return new(false, false, label, L("dh.sub.locked"));
+        if (!g.InGuild) return new(false, false, label, L("dh.sub.notInGuild"));
         if (!g.Open) return new(false, false, label, DhGhClosedSub());
         if (live.Matching) return new(false, false, label, "");
-        if (which == 0) return live.InTeam ? new(false, false, label, "you are in a party") : new(true, false, label, "on your own");
-        if (!live.InTeam) return new(false, false, label, "not in a party");
-        return live.Leader ? new(true, false, label, "with your party") : new(false, false, label, "leader only");
+        if (which == 0) return live.InTeam ? new(false, false, label, L("dh.sub.youInParty")) : new(true, false, label, L("dh.sub.onYourOwn"));
+        if (!live.InTeam) return new(false, false, label, L("dh.sub.notInParty"));
+        return live.Leader ? new(true, false, label, L("dh.sub.withParty")) : new(false, false, label, L("dh.sub.leaderOnly"));
     }
 
     // ── detail panel: the dungeon panel's skeleton (art · name · DIFFICULTY · chips · mid block · Solo/Match/Party), so
@@ -116,16 +118,14 @@ public sealed partial class Plugin
     private HudElement DhGhPanel() => DhPanelNoCaption(
         DhArtBand(),
         DhNameRow(),
-        DhCaption(() => "DIFFICULTY"),
+        DhCaption(() => L("dh.cap.difficulty")),
         new RowElement(new HudElement[] { DhGhChip(0, DhChipW), DhGhChip(1, DhChipW) }, Gap: DhPanGap),
         new RowElement(new HudElement[]
         {
             new SpacerElement(0f, DhMidH),
-            new CellElement(DhTopPinned(new ColumnElement(new HudElement[]
-            {
-                DhGhTiles(), DhCaption(() => "HOW TO GO"),
-            }, Gap: DhPanGap)), Width: DhDetInW),
+            new CellElement(DhTopPinned(DhGhTiles()), Width: DhDetInW),
         }, Gap: 0.01f),
+        DhCaption(() => L("dh.cap.howToGo")),   // outside the block: always directly above the buttons (Detail.cs)
         new RowElement(new HudElement[]
         {
             DhGoButton(0, DhThirdW, DhOnSolo),
@@ -139,22 +139,22 @@ public sealed partial class Plugin
 
     private HudElement DhGhTiles() => new RowElement(new HudElement[]
     {
-        DhGhTile(() => "Recommended", () => _dhGh is { } g && g.Rec[_dhGhDiff] > 100 ? DhNum(g.Rec[_dhGhDiff]) : "—",
+        DhGhTile(() => L("dh.tile.recommended"), () => _dhGh is { } g && g.Rec[_dhGhDiff] > 100 ? DhAsIbs(_dhGhRecTxt, g.Rec[_dhGhDiff], g.Ibs[_dhGhDiff]) : "—",
             () => TextColor(), null, DhThirdW),
         new ConditionalElement(() => DhGhStartsIn().Length > 0 && DhCur is { Locked: false },
-            DhGhTile(() => "Status", () => "Closed", () => DhAmber, DhGhStartsIn, DhThirdMidW),
-            DhGhTile(() => "Status", DhGhStatus, DhGhStatusColor, null, DhThirdMidW)),
-        DhGhTile(() => "Rewards left",
-            () => DhGhRewards() is { Length: > 0 } r ? (_dhGh!.ActRem <= 0 ? $"{r} · no rewards" : r) : "—",
+            DhGhTile(() => L("dh.tile.status"), () => L("dh.st.closed"), () => DhAmber, DhGhStartsIn, DhThirdMidW),
+            DhGhTile(() => L("dh.tile.status"), DhGhStatus, DhGhStatusColor, null, DhThirdMidW)),
+        DhGhTile(() => L("dh.word.rewardsLeft"),
+            () => DhGhRewards() is { Length: > 0 } r ? (_dhGh!.ActRem <= 0 ? LF("dh.counter.none", r) : r) : "—",
             () => _dhGh is { ActLim: > 0, ActRem: <= 0 } ? MutedColor() : TextColor(), null, DhThirdW),
     }, Gap: DhPanGap);
 
-    private string DhGhStatus() => DhCur is { Locked: true } ? "Locked" : _dhGh switch
+    private string DhGhStatus() => DhCur is { Locked: true } ? L("dh.word.locked") : _dhGh switch
     {
         null => "—",
-        { InGuild: false } => "Not in a guild",
-        { Open: true } => "Open",
-        _ => "Closed",
+        { InGuild: false } => L("dh.gh.notInGuild"),
+        { Open: true } => L("dh.st.open"),
+        _ => L("dh.st.closed"),
     };
 
     private ColorRgba DhGhStatusColor() => DhCur is { Locked: true } ? MutedColor() : _dhGh switch
@@ -169,7 +169,8 @@ public sealed partial class Plugin
         var lines = new System.Collections.Generic.List<HudElement>
         {
             new TextElement(label, Color: () => MutedColor(), NoWrap: true, FontSize: DhFsSub) { RichEmoji = true, Ellipsize = true },
-            new TextElement(value, Color: () => valueColor(), NoWrap: true, FontSize: DhFsBody) { Bold = true, Ellipsize = true },
+            // RichEmoji: Recommended's "AS (IBS)" carries an inline <color> tag (Detail.cs DhAsIbs)
+            new TextElement(value, Color: () => valueColor(), NoWrap: true, FontSize: DhFsBody) { RichEmoji = true, Bold = true, Ellipsize = true },
         };
         if (sub != null)
             lines.Add(new TextElement(sub, Color: () => MutedColor(), NoWrap: true, FontSize: DhFsTiny) { RichEmoji = true, Ellipsize = true });
@@ -180,7 +181,7 @@ public sealed partial class Plugin
             new SpacerElement(DcSE(8f), 0f),
         }, Gap: 0.01f))
         {
-            FillColorFn = () => DcTile(), CornerRadius = DhRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
+            FillColorFn = () => Fade(DcTile()), CornerRadius = DhRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
         }, Width: w);
     }
 
@@ -197,13 +198,13 @@ public sealed partial class Plugin
         return new CellElement(new BubbleElement(new SelectableElement(new RowElement(new HudElement[]
             {
                 new SpacerElement(0f, DhChipH),
-                DcDrop(DcBold(() => DhGhDiffs[i],
+                DcDrop(DcBold(() => L(DhGhDiffKeys[i]),
                     () => on() ? EnsureContrast(kind, fill(), 4.5f) : has() ? MutedColor() : MutedColor() with { A = 0.5f },
                     DhFsBody, w, TextAlign.Center)),
             }, Gap: 0.01f, Justify: RowJustify.Center), OnClick: () => { if (has()) _dhGhDiff = i; }) { Bare = true, OnHover = o => hover.On = o })
             {
-                FillColorFn = () => fill(),
-                OutlineColorFn = () => on() ? kind with { A = 0.6f } : null,
+                FillColorFn = () => Fade(fill()),
+                OutlineColorFn = () => FadeRing(on() ? kind with { A = 0.6f } : null),
                 CornerRadius = DhChipH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
             }, Width: w);
     }
@@ -232,7 +233,7 @@ public sealed partial class Plugin
             _services.Log.Info($"[DungeonHub] {what}: sent AsyncCreateLevel({args})" +
                 (warn.Length > 0 ? $" — no {warn} rewards left (game tip shown, sent anyway)" : ""));
             _dhEnterWhat = what; _dhEnterSince = DcNow; _dhEnterWait = true; _dhEnterGh = true; _dhEnterCm = false;
-            if (warn.Length > 0) DhSetNotice("Guild Hunt: no rewards left"); else _dhNotice = "";
+            if (warn.Length > 0) DhSetNotice(L("dh.gh.noRewards")); else _dhNotice = "";
             DhHide();          // Party → the team_enter vote (our Dungeon Confirm, inferred), Solo → loading
             DhFollowEnter();   // a refusal before the RPC (Condition) returns synchronously
         }
@@ -241,7 +242,7 @@ public sealed partial class Plugin
             string why = res.Substring(2).Trim();
             _services.Log.Info($"[DungeonHub] {what}: not sent — {why}");
             DhSetNotice(why == "closed" ? DhGhClosedNotice()
-                : why == "leader only" ? "Guild Hunt: only the party leader can enter" : why);
+                : why == "leader only" ? L("dh.gh.leaderOnly") : DhReason(why));
         }
         else
         {
@@ -340,6 +341,7 @@ public sealed partial class Plugin
       pcall(function()
         for _, v in ipairs(Z.UnionActivityConfig.HuntActivityId) do if v[2] == UH then ids[#ids + 1] = v[1] end end
       end)
+      local ibs = { 0, 0 }
       for i = 1, 2 do
         local id = ids[i] or 0
         local row = id > 0 and DT.GetRow(id, true) or nil
@@ -347,7 +349,10 @@ public sealed partial class Plugin
         local cid = id > 0 and try(function() return uvm:GetDungeonCounterID(id) end, 0) or 0
         if cid > 0 then rem, lim = cnt(cid) end
         f[#f + 1] = id f[#f + 1] = row and row.RecommendFightValue or 0 f[#f + 1] = rem f[#f + 1] = lim
+        ibs[i] = ibsOf(row)
       end
+      -- recommended IBS per difficulty AFTER the four-field blocks, so the older layout's indices stay put
+      f[#f + 1] = ibs[1] f[#f + 1] = ibs[2]
       rec(table.unpack(f))
     end)
 ";

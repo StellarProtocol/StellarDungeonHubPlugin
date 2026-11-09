@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using Stellar.Abstractions.Domain;
 
 namespace Stellar.DungeonHub;
 
@@ -13,7 +14,8 @@ namespace Stellar.DungeonHub;
 //      (twenty = the 4-group layout, chosen by the TEAM — Lua.cs "layout"; cap = the dungeon's max players, 0 = unknown;
 //       raidContent = that dungeon is a raid → the 4-group panel says RAID, else PARTY — Lua.cs "raidContent")
 //   A  affixId  name  iconPath                                                  (one per affix)
-//   M  charId  name  level  professionId  ai(0|1)  assist(0|1)  ready(0 wait|1 ready|2 declined)  slot20  leader  me  fightPoint(0 = none)
+//   M  charId  name  level  professionId  ai(0|1)  assist(0|1)  ready(0 wait|1 ready|2 declined)  slot20  leader  me  fightPoint(0 = none)  ibs(0 = none)
+//      (ibs = Illusion-Breaking Strength, shown "AS (IBS)"; appended last, so an older 12-field record still parses)
 public sealed partial class Plugin
 {
     private const char DcUs = '\x1f', DcRs = '\x1e';
@@ -22,10 +24,11 @@ public sealed partial class Plugin
     {
         public string CharId = "", Name = "";
         // Ready: 0 waiting, 1 ready, 2 declined (wire), 3 no answer (C# only, DcMarkTimeouts). Slot: 1..20 raid group
-        // slot, 0 = none. Score: ability score, 0 = unknown.
-        public int    Level, Prof, Ready, Slot, Score;
+        // slot, 0 = none. Score: ability score, Ibs: Illusion-Breaking Strength — 0 = unknown for both.
+        public int    Level, Prof, Ready, Slot, Score, Ibs;
         public bool   Ai, Assist, Leader, Me;
-        public string? ScoreText;   // DcScoreText cache
+        public string? ScoreText;    // DcScoreText cache …
+        public ColorRgba ScoreInk;   // … and the IBS ink it was composed with (theme-live: a theme change rebuilds it)
     }
 
     private sealed class DcAffix { public int Id; public string Name = "", Icon = "", Label = ""; }
@@ -78,6 +81,7 @@ public sealed partial class Plugin
                         CharId = f[1], Name = f[2], Level = DcInt(f[3]), Prof = DcInt(f[4]), Ai = f[5] == "1",
                         Assist = f[6] == "1", Ready = DcInt(f[7]), Slot = DcInt(f[8]), Leader = f[9] == "1", Me = f[10] == "1",
                         Score = f.Length >= 12 ? DcInt(f[11]) : 0,
+                        Ibs   = f.Length >= 13 ? DcInt(f[12]) : 0,
                     });
                     break;
             }
@@ -110,25 +114,24 @@ public sealed partial class Plugin
         if (_dc == null) return ("", "", 0, "");
         var s = _dc;
         int waiting = s.Waiting;
-        string key = $"{_dcEnd}|{_dcEndName}|{_dcEndCount}|{waiting}|{_dcConfirmed}|{s.Match}|{s.IAmLeader}|{s.LeaderName}";
+        string key = $"{_dcEnd}|{_dcEndName}|{_dcEndCount}|{waiting}|{_dcConfirmed}|{s.Match}|{s.IAmLeader}|{s.LeaderName}|{_loc.Language}";
         if (key == _dcStatusKey) return _dcStatusCache;
         _dcStatusKey = key;
-        string more = waiting == 1 ? "1 more" : $"{waiting} more";
         _dcStatusCache = _dcEnd switch
         {
             // No edge spaces: DcStatusLine puts a word-gap spacer between non-empty segments (Window.cs header note).
-            DcEnd.Declined  => ("", "Entry cancelled", 1, $"· {_dcEndName} declined"),
-            DcEnd.Cancelled => ("", "Entry cancelled", 1, ""),
+            DcEnd.Declined  => ("", L("dc.s.cancelled"), 1, LF("dc.s.declined", _dcEndName)),
+            DcEnd.Cancelled => ("", L("dc.s.cancelled"), 1, ""),
             // TimedOut (team mode, DcMarkTimeouts): one silent member is named ("You" = me), several are counted.
-            DcEnd.TimedOut when _dcEndName.Length > 0 => ("Time ran out", "", 0, $"· {_dcEndName} didn't answer"),
-            DcEnd.TimedOut when _dcEndCount > 1       => ("Time ran out", "", 0, $"· {_dcEndCount} didn't answer"),
-            DcEnd.TimedOut  => ("Time ran out", "", 0, ""),
-            _ when waiting == 0 => ("", "Everyone is ready", 2, ""),
+            DcEnd.TimedOut when _dcEndName.Length > 0 => (L("dc.s.timeout"), "", 0, LF("dc.s.noAnswer", _dcEndName)),
+            DcEnd.TimedOut when _dcEndCount > 1       => (L("dc.s.timeout"), "", 0, LF("dc.s.noAnswer", _dcEndCount)),
+            DcEnd.TimedOut  => (L("dc.s.timeout"), "", 0, ""),
+            _ when waiting == 0 => ("", L("dc.s.allReady"), 2, ""),
             // The team leader counts as ready from the start (Ready = 1), so test leader before "confirmed".
-            _ when !s.Match && s.IAmLeader => ($"You started entry · waiting for {waiting}", "", 0, ""),
-            _ when _dcConfirmed => ("", "You're ready", 2, $"· waiting for {more}"),
-            _ when s.Match      => ("Match found · confirm to enter", "", 0, ""),
-            _                   => ("Leader", s.LeaderName, 3, "started entry"),
+            _ when !s.Match && s.IAmLeader => (LF("dc.s.leaderWaiting", waiting), "", 0, ""),
+            _ when _dcConfirmed => ("", L("dc.s.youReady"), 2, waiting == 1 ? L("dc.s.waitingMore1") : LF("dc.s.waitingMore", waiting)),
+            _ when s.Match      => (L("dc.s.matchFound"), "", 0, ""),
+            _                   => (L("dc.s.leaderPre"), s.LeaderName, 3, L("dc.s.leaderPost")),
         };
         return _dcStatusCache;
     }

@@ -91,7 +91,7 @@ public sealed partial class Plugin
             new SpacerElement(side, DcClassW),
         }, Gap: 0.01f, Justify: RowJustify.Center))
         {
-            FillColorFn = () => DcRoleColor(m()?.Prof ?? 0), CornerRadius = DcBadgeRadius, PaddingX = 0f, PaddingY = 0f,
+            FillColorFn = () => Fade(DcRoleColor(m()?.Prof ?? 0)), CornerRadius = DcBadgeRadius, PaddingX = 0f, PaddingY = 0f,
             MaxWidth = DcClassW,
         }, Width: DcClassW);
     }
@@ -124,7 +124,7 @@ public sealed partial class Plugin
                     new SpacerElement(side, DcIconBox),
                 }, Gap: 0.01f, Justify: RowJustify.Center)))
             {
-                FillColorFn = () => _dcEnd != DcEnd.None ? DangerFill : Menu.MenuAccent,
+                FillColorFn = () => Fade(_dcEnd != DcEnd.None ? DangerFill : Menu.MenuAccent),
                 CornerRadius = DcIconRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcIconBox,
             }, Width: DcIconBox);
     }
@@ -148,8 +148,8 @@ public sealed partial class Plugin
                 () => DcAffixAt(k)?.Label ?? "", () => DcAmber));
         }
         chips[DcMaxAffixes] = new ConditionalElement(() => _dc is { KeyLeft: >= 0 },
-            DcChip(null, () => $"Key: {_dc?.KeyLeft ?? 0} left", () => Menu.MenuAccent));
-        return DcPanel(() => "AFFIXES", DcSmall(() => "", MutedColor),   // hint left empty: the difficulty is the header chip
+            DcChip(null, () => LF("dc.key", _dc?.KeyLeft ?? 0), () => Menu.MenuAccent));
+        return DcPanel(() => L("dc.cap.affixes"), DcSmall(() => "", MutedColor),   // hint left empty: the difficulty is the header chip
             new RowElement(chips, Gap: DcChipGap));
     }
 
@@ -165,7 +165,7 @@ public sealed partial class Plugin
                                  DcBold(label, () => EnsureContrast(color(), fill(), 4.5f), DcFsSmall), new SpacerElement(DcS(9f), 0f) };
         return new BubbleElement(new RowElement(parts, Gap: 0.01f))
         {
-            FillColorFn = () => fill(), CornerRadius = DcChipH / 2f - 1f, PaddingX = 0f, PaddingY = 0f,
+            FillColorFn = () => Fade(fill()), CornerRadius = DcChipH / 2f - 1f, PaddingX = 0f, PaddingY = 0f,
         };
     }
 
@@ -207,7 +207,9 @@ public sealed partial class Plugin
     // ONCE at build, so the colour is baked from the Func the builder pulls (style A ink / white at that moment);
     // cached per (shape, size, colour) so every row shares one byte[] (the builder dedups decodes by reference).
     // Gear: the hub header's settings button (icon-only, beside the ✕ — .DungeonHub.Window.cs DhSettingsButton).
-    private enum DcGlyph { Check, Cross, Gear }
+    // Play: the settings' ▶ preview buttons (.DungeonConfirm.Settings.cs) — "▶" isn't trusted in the TMP faces either.
+    // Chevron: the ▾ of the disabled sound-dropdown stand-in (.DungeonConfirm.Settings.cs DsDropdownOff), 8 wide × 5 tall ink.
+    private enum DcGlyph { Check, Cross, Gear, Play, Chevron }
     private static readonly System.Collections.Generic.Dictionary<(DcGlyph, int, int), byte[]?> _dcGlyphs = new();
 
     private static byte[]? DcGlyphPng(DcGlyph g, float shown, ColorRgba c)
@@ -221,6 +223,8 @@ public sealed partial class Plugin
         {
             DcGlyph.Check => (x, y) => DcSeg(x, y, 4.5f, 12.5f, 9.5f, 17.5f, 2.3f) || DcSeg(x, y, 9.5f, 17.5f, 19.5f, 6.5f, 2.3f),
             DcGlyph.Gear  => DcGearInside,
+            DcGlyph.Play  => (x, y) => x >= 7.5f && x <= 19.5f && MathF.Abs(y - 12f) <= (19.5f - x) * 0.6f,
+            DcGlyph.Chevron => (x, y) => y >= 4.5f && y <= 19.5f && MathF.Abs(x - 12f) <= (19.5f - y) * 0.8f,
             _             => (x, y) => DcSeg(x, y, 6f, 6f, 18f, 18f, 2.3f) || DcSeg(x, y, 18f, 6f, 6f, 18f, 2.3f),
         };
         return _dcGlyphs[key] = DcRaster(2 * (int)shown, 24f, r, gr, b, inside);
@@ -247,7 +251,7 @@ public sealed partial class Plugin
             new SpacerElement(DcPillW - 2f * DcPillPadX, 0f),   // pins the width (centring note above)
             new RowElement(new HudElement[]
             {
-                new SpacerElement(0f, DcPillH), DcDrop(DcBold(() => "Confirmed", DcConfirmedText, DcFsBody)),
+                new SpacerElement(0f, DcPillH), DcDrop(DcBold(() => L("dc.btn.confirmed"), DcConfirmedText, DcFsBody)),
                 new SpacerElement(DcS(3f), 0f),
                 new ImageElement(() => DcGlyphPng(DcGlyph.Check, DcGlyphLW, DcConfirmedText()), (int)DcGlyphLW, (int)DcGlyphLW),
             }, Gap: 0.01f, Justify: RowJustify.Center),
@@ -255,7 +259,7 @@ public sealed partial class Plugin
         new SpacerElement(DcPillPadX, DcPillH),
     }, Gap: 0.01f, Justify: RowJustify.Center))
     {
-        FillColorFn = () => DcConfirmedFill, CornerRadius = DcPillH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcPillW,
+        FillColorFn = () => Fade(DcConfirmedFill), CornerRadius = DcPillH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcPillW,
     };
 
     private static void DcStarPt(int i, out float x, out float y)

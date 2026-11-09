@@ -16,15 +16,22 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Stellar.Abstractions"       Version="2.28.0" />
-    <PackageReference Include="Stellar.PluginContracts"    Version="2.28.0" />
-    <PackageReference Include="Stellar.Plugin.InteropRefs" Version="2.28.0" />
+    <PackageReference Include="Stellar.Abstractions"       Version="2.29.1" />
+    <PackageReference Include="Stellar.PluginContracts"    Version="2.29.1" />
+    <PackageReference Include="Stellar.Plugin.InteropRefs" Version="2.29.1" />
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Resources/dungeons-esc-icon.png" LogicalName="Stellar.DungeonHub.dungeons-esc-icon.png" />
     <EmbeddedResource Include="Resources/dc_enter.wav" LogicalName="Stellar.DungeonHub.dc_enter.wav" />
     <EmbeddedResource Include="Resources/dc_tick.wav" LogicalName="Stellar.DungeonHub.dc_tick.wav" />
+    <!-- UI text catalogs (Plugin.Loc.cs): the framework finds them by the "Lang.<code>.json" suffix. -->
+    <EmbeddedResource Include="Lang/en.json" LogicalName="Stellar.DungeonHub.Lang.en.json" />
+    <EmbeddedResource Include="Lang/ja.json" LogicalName="Stellar.DungeonHub.Lang.ja.json" />
+    <EmbeddedResource Include="Lang/ko.json" LogicalName="Stellar.DungeonHub.Lang.ko.json" />
+    <EmbeddedResource Include="Lang/th.json" LogicalName="Stellar.DungeonHub.Lang.th.json" />
+    <EmbeddedResource Include="Lang/id.json" LogicalName="Stellar.DungeonHub.Lang.id.json" />
+    <EmbeddedResource Include="Lang/fil.json" LogicalName="Stellar.DungeonHub.Lang.fil.json" />
   </ItemGroup>
 
   <ItemGroup>

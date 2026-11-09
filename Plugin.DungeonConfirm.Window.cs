@@ -20,7 +20,7 @@ namespace Stellar.DungeonHub;
 //   • · … render in the TMP faces (TmpStyledText.Ellipsis: both shipped TMP faces carry U+2026). ✓ ✕ ★ are NOT
 //     trusted in BOLD (the header's bold ✕ drew blank in game, 2026-11-06), so every one is a generated PNG (Art.cs).
 //   • Text runs side by side lose their edge spaces (a TMP run's preferred width drops trailing whitespace: "Leader " +
-//     name read "LeaderMahiru"), so runs carry no edge spaces and the word gap is an explicit DcWordGap spacer.
+//     name read "LeaderPlayer"), so runs carry no edge spaces and the word gap is an explicit DcWordGap spacer.
 public sealed partial class Plugin
 {
     // ── scale ─────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -36,7 +36,7 @@ public sealed partial class Plugin
     private static int   DcSi(float x) => (int)DcS(x);
 
     private const float DcPad = 24f;   // framework GlassMenu body padding (12 per side) — fixed, NOT scaled
-    // 5-player width: 345 × 1.6 = 552 cut "SugarMahiru YOU ASSIST" to "SugarMa…" in game (2026-11-06), so it is 680
+    // 5-player width: 345 × 1.6 = 552 cut an 11-glyph name + "YOU ASSIST" to 7 glyphs + "…" in game (2026-11-06), so it is 680
     // (425 × 1.6); the extra 128 goes to the flexible name cell and header title. Height unchanged; art strip just wider.
     private static readonly float Dc5W = DcSE(425f), DcRW = DcSE(640f);                                    // 680 / 1024
     private static readonly float DcHeaderH = DcSE(40f), DcBarH = DcSE(6f), DcCaptionH = DcSE(18f);        // 64 · 10 · 28
@@ -58,9 +58,9 @@ public sealed partial class Plugin
     private static readonly float DcSp4 = DcSE(4f), DcSp6 = DcSE(6f), DcSp7 = DcSE(7f), DcSp8 = DcSE(8f);   // 6 · 10 · 12 · 12
     private static readonly float DcSp10 = DcSE(10f), DcTimerW = DcSE(52f);                                // 16 · 84
     private static readonly float DcAssistW = DcSE(40f);                                                   // 64
-    // Ability score column (right-aligned, muted): "123,456" regular 19 ≈ 6 digits × 10.5 + comma 5 ≈ 68 → 84; the raid
-    // row's smaller copy (tag 16) ≈ 57 → 60.
-    private static readonly float DcScoreW = DcSE(52f), DcScoreRaidW = DcSE(38f);                          // 84 · 60
+    // Ability score column (right-aligned, muted), "AS (IBS)": "666,666 (6,666)" regular 19 ≈ 10 digits × 10.5 + 2 commas
+    // × 5 + space 5 + brackets 2 × 6 ≈ 132 → 140; the raid row's smaller copy (tag 16) ≈ 132 × 16/19 ≈ 111 → 128.
+    private static readonly float DcScoreW = DcSE(88f), DcScoreRaidW = DcSE(80f);                          // 140 · 128
     private static readonly int   Dc5ArtH = (int)DcSE(122f), DcRArtH = (int)DcSE(156f);                    // 196 · 250
     // Fonts: title 24 · timer 29 · body (names, pill labels) 21 · small (captions, status, chips) 19 · mark 18 · tag 16.
     // Generated ✓/✕ images (Art.cs DcGlyphPng): 16 in a raid mark or a body-size pill label.
@@ -98,8 +98,8 @@ public sealed partial class Plugin
     private static readonly float Dc5RowW = DcAffixRowW;                                                     // 624
     private static readonly float DcRaidColW = 2f * MathF.Floor((DcRW - DcPad - 2f * DcPanelPadX - DcSp8) / 4f);   // 478
     private static readonly float DcRowLead = DcSp4 + DcClassW + DcSp7;                                     // 50
-    private static readonly float Dc5NameW = Dc5RowW - DcRowLead - 2f * DcSp7 - DcScoreW - DcStatusW - DcSp6;   // 334
-    private static readonly float DcRaidNameW = DcRaidColW - DcRowLead - 2f * DcSp7 - DcScoreRaidW - DcStatusH - DcSp4;   // 306
+    private static readonly float Dc5NameW = Dc5RowW - DcRowLead - 2f * DcSp7 - DcScoreW - DcStatusW - DcSp6;   // 278
+    private static readonly float DcRaidNameW = DcRaidColW - DcRowLead - 2f * DcSp7 - DcScoreRaidW - DcStatusH - DcSp4;   // 238
 
     private static readonly ColorRgba DcAmber   = Rgb(0xffcc73);
     private static readonly ColorRgba DcRedWash = Rgb(0xff4d4f, 0.22f);
@@ -139,6 +139,8 @@ public sealed partial class Plugin
                 Category:    WindowCategory.Tools,
                 Style:       WindowPanelStyle.GlassMenu)
             { Draggable = true, Closable = false, StartVisible = false, ShowTitleBar = false, Anchor = WindowAnchor.Center,
+              TitleProvider = () => L("dc.title"),
+              FrameOpacity = DhFrameOpacity,   // settings' custom opacity, null = theme (.WindowOpacity.cs)
               ShouldRender = () => on() && _services.ClientState.Phase == GamePhase.World &&
                                    (_services.ClientState.UiState & GameUIState.Loading) == 0 },
             Root: root,
@@ -177,11 +179,11 @@ public sealed partial class Plugin
     private static TextElement DcSmall(Func<string> text, Func<ColorRgba> color, int size = 0, float width = 0f,
         TextAlign align = TextAlign.Left) =>
         new(text, Color: () => color(), Width: width, Align: align, NoWrap: true, FontSize: size > 0 ? size : DcFsSmall)
-            { RichEmoji = true };
+            { RichEmoji = true, Ellipsize = width > 0 };   // a fixed cell cuts a long translation with …
 
     private static TextElement DcBold(Func<string> text, Func<ColorRgba> color, int size, float width = 0f,
         TextAlign align = TextAlign.Left) =>
-        new(text, Color: () => color(), Width: width, Align: align, NoWrap: true, FontSize: size) { Bold = true };
+        new(text, Color: () => color(), Width: width, Align: align, NoWrap: true, FontSize: size) { Bold = true, Ellipsize = width > 0 };
 
     // Bold (TMP) labels sit ~1.5 px high per 28 px when line-box centred: put the label in a Column under a 2×drop
     // spacer, which centres the pair and moves the caps DOWN by DcBoldDrop (Maestro DropBold, R9 equal ink margins).
@@ -210,6 +212,7 @@ public sealed partial class Plugin
     // pill's right edge, 2026-11-06; BubbleBinding.Apply, WindowBuilder.Bindings.Misc.cs).
 
     // hoverFill: an explicit hover colour (the green Confirm); null = the usual 10 % text-colour wash over the fill.
+    // Every pill (and its hover) follows the window opacity (Style.cs Fade), action pills included.
     private HudElement DcPill(Func<string> label, Func<ColorRgba> fill, Func<ColorRgba> text, Action onClick,
                               Func<ColorRgba>? hoverFill = null)
     {
@@ -218,7 +221,7 @@ public sealed partial class Plugin
             DcPillRow(DcPillLabel(label, text)), OnClick: onClick)
             { Bare = true, OnHover = over => hover.On = over })
         {
-            FillColorFn = () => !hover.On ? fill() : hoverFill?.Invoke() ?? Over(Menu.MenuText with { A = 0.10f }, fill()),
+            FillColorFn = () => Fade(!hover.On ? fill() : hoverFill?.Invoke() ?? Over(Menu.MenuText with { A = 0.10f }, fill())),
             CornerRadius = DcPillH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcPillW,
         };
     }
@@ -227,7 +230,7 @@ public sealed partial class Plugin
     private HudElement DcPillOff(Func<string> label, Func<ColorRgba> fill) => new BubbleElement(
         DcPillRow(DcPillLabel(label, () => MutedColor())))
     {
-        FillColorFn = () => Mix(PanelColor(), fill(), 0.5f), CornerRadius = DcPillH / 2f - 1f, PaddingX = 0f, PaddingY = 0f,
+        FillColorFn = () => Fade(Mix(PanelColor(), fill(), 0.5f)), CornerRadius = DcPillH / 2f - 1f, PaddingX = 0f, PaddingY = 0f,
         MaxWidth = DcPillW,
     };
 
@@ -254,7 +257,7 @@ public sealed partial class Plugin
         Array.Copy(children, 0, items, 1, children.Length);
         return new BubbleElement(new ColumnElement(items, Gap: DcPanelGap))
         {
-            FillColorFn = () => PanelColor(), CornerRadius = DcRadius, PaddingX = DcPanelPadX, PaddingY = DcPanelPadY,
+            FillColorFn = () => Fade(PanelColor()), CornerRadius = DcRadius, PaddingX = DcPanelPadX, PaddingY = DcPanelPadY,
         };
     }
 
@@ -263,7 +266,7 @@ public sealed partial class Plugin
     {
         DcBold(() => _dc == null ? "" : _dc.ReadyCount.ToString(), () => StatusOn, DcFsSmall),
         DcWordSpace(),   // edge spaces in a run are dropped (header note)
-        DcSmall(() => _dc == null ? "" : $"/ {_dc.Members.Count} ready", MutedColor),
+        DcSmall(() => _dc == null ? "" : LF("dc.readyOf", _dc.Members.Count), MutedColor),
     }, Gap: 0.01f);
 
     // ── shared blocks ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -271,7 +274,7 @@ public sealed partial class Plugin
     private HudElement DcArtStrip(int width, int height) => new BubbleElement(
         new GameTextureElement(DcArtTex, width, height, () => _dcArtUv) { Fill = true, CornerRadius = (int)DcRadius })
     {
-        FillColorFn = () => DcTile(), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f,
+        FillColorFn = () => Fade(DcTile()), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f,
     };
 
     private HudElement DcHeader() => new RowElement(new HudElement[]
@@ -302,12 +305,12 @@ public sealed partial class Plugin
     private HudElement DcDiffChip() => new CellElement(new BubbleElement(new RowElement(new HudElement[]
         {
             new SpacerElement(0f, DcStatusH),
-            DcDrop(new TextElement(() => _dc?.TypeName ?? "", Color: () => EnsureContrast(DcDiffText(), DcDiffFill(), 4.5f),
+            DcDrop(new TextElement(() => DhWord(_dc?.TypeName), Color: () => EnsureContrast(DcDiffText(), DcDiffFill(), 4.5f),
                 Width: DcDiffW - 2f * DcDiffPadX, Align: TextAlign.Center, NoWrap: true, FontSize: DcFsSmall)
                 { Bold = true, Ellipsize = true }),
         }, Gap: 0.01f, Justify: RowJustify.Center))
         {
-            FillColorFn = () => DcDiffFill(), CornerRadius = DcStatusH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcDiffW,
+            FillColorFn = () => Fade(DcDiffFill()), CornerRadius = DcStatusH / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcDiffW,
         }, Width: DcDiffW);
 
     private ColorRgba DcDiffText() => (_dc?.DiffKind ?? 0) switch
@@ -337,13 +340,14 @@ public sealed partial class Plugin
 
     private HudElement DcBar() => new BarElement(() => DcBarFraction(), Menu.MenuAccent)
     {
-        Height = DcBarH, FillWidth = true, FillColorFn = () => DcLow ? DcAmber : Menu.MenuAccent,
+        // The fill fades like every other fill; the track is the framework's fixed black@0.38 tint (not themable).
+        Height = DcBarH, FillWidth = true, FillColorFn = () => Fade(DcLow ? DcAmber : Menu.MenuAccent),
     };
 
     private float DcBarFraction() =>
         _dc == null || _dcEnd != DcEnd.None ? 0f : (float)Math.Clamp(DcRemaining / _dc.TotalSec, 0, 1);
 
-    private string DcTimerText() => _dc == null ? "" : _dcEnd != DcEnd.None ? "–" : $"{(int)Math.Ceiling(DcRemaining)}s";
+    private string DcTimerText() => _dc == null ? "" : _dcEnd != DcEnd.None ? "–" : LF("dc.timer", (int)Math.Ceiling(DcRemaining));
     private ColorRgba DcTimerColor() => _dcEnd != DcEnd.None ? MutedColor() : DcLow ? DcAmber : Menu.MenuAccent;
 
     // Footer: muted message left, two fixed 186 px slots right. Every state shows a 186×44 element in each slot (an
@@ -363,23 +367,23 @@ public sealed partial class Plugin
     private HudElement DcLeftSlot() => new ConditionalElement(() => _dc == null || _dcEnd != DcEnd.None || (!_dc.Match && _dc.IAmLeader),
         DcBlankSlot(),
         new ConditionalElement(() => _dcMatchDeclined,
-            DcPillOff(() => "Declined", DcNeutral),
+            DcPillOff(() => L("dc.btn.declined"), DcNeutral),
             new ConditionalElement(() => DcNow <= _dcArmUntil,
-                DcDanger(() => "Decline?", DcOnDecline),
-                DcDanger(() => "Decline", DcOnDecline))));
+                DcDanger(() => L("dc.btn.declineArm"), DcOnDecline),
+                DcDanger(() => L("dc.btn.decline"), DcOnDecline))));
 
     // Right: Close (end) · Cancel Entry / disabled once "doing" (leader) · Confirm / green "Confirmed ✓" (Art.cs).
     private HudElement DcRightSlot() => new ConditionalElement(() => _dc == null || _dcEnd != DcEnd.None,
-        DcNeutralPill(() => "Close", DcClose),
+        DcNeutralPill(() => L("dc.btn.close"), DcClose),
         new ConditionalElement(() => !_dc!.Match && _dc.IAmLeader,
             new ConditionalElement(() => _dc!.Doing,
-                DcPillOff(() => "Cancel Entry", () => DangerFill),
-                DcDanger(() => "Cancel Entry", DcOnLeaderCancel)),
+                DcPillOff(() => L("dc.btn.cancelEntry"), () => DangerFill),
+                DcDanger(() => L("dc.btn.cancelEntry"), DcOnLeaderCancel)),
             new ConditionalElement(() => _dcMatchDeclined,
-                DcPillOff(() => "Confirm", () => DcConfirmedFill),
+                DcPillOff(() => L("dc.btn.confirm"), () => DcConfirmedFill),
                 new ConditionalElement(() => _dcConfirmed,
                     DcConfirmedPill(),
-                    DcPrimary(() => "Confirm", DcOnConfirm)))));
+                    DcPrimary(() => L("dc.btn.confirm"), DcOnConfirm)))));
 
     // ── 5-player layout ───────────────────────────────────────────────────────────────────────────────────────────
     private HudElement BuildDc5Root() => new ColumnElement(new HudElement[]
@@ -394,13 +398,13 @@ public sealed partial class Plugin
         DcFooter(() => _dcEnd != DcEnd.None ? DcClosingText() : ""),
     }, Gap: DcGap);
 
-    private string DcClosingText() => $"Closing in {Math.Max(1, (int)Math.Ceiling(_dcEndUntil - DcNow))}s";
+    private string DcClosingText() => LF("dc.closingIn", Math.Max(1, (int)Math.Ceiling(_dcEndUntil - DcNow)));
 
     private HudElement DcPartyPanel(float filler)
     {
         var rows = new HudElement[5];
         for (int i = 0; i < 5; i++) rows[i] = DcPartyRow(i);
-        return DcPanel(() => "PARTY", DcReadyHint(),
+        return DcPanel(() => L("dc.cap.party"), DcReadyHint(),
             new ColumnElement(rows, Gap: DcRowGap),
             new SpacerElement(0f, filler));
     }
@@ -409,8 +413,8 @@ public sealed partial class Plugin
 
     // One 42 px Tile row: class icon · name + ASSIST · ability score · status pill. My row: 1 px accent outline — that
     // alone marks me; the "YOU" tag came off both layouts (user, 2026-11-06), so the fixed name cell just gives names room.
-    // Horizontal parts are all even (6+32+12 … 12+84+12+122+10 = 290), so the name cell is even too (624 − 290 = 334;
-    // "SugarMahiru" bold 21 + ASSIST ≈ 195). Exact 624 wide (Dc5RowW note); an unfilled slot = DcEmptyRow.
+    // Horizontal parts are all even (6+32+12 … 12+140+12+122+10 = 346), so the name cell is even too (624 − 346 = 278;
+    // an 11-glyph name bold 21 + ASSIST ≈ 195). Exact 624 wide (Dc5RowW note); an unfilled slot = DcEmptyRow.
     private HudElement DcPartyRow(int i) => new ConditionalElement(() => DcMem(i) != null,
         new BubbleElement(new RowElement(new HudElement[]
         {
@@ -425,8 +429,8 @@ public sealed partial class Plugin
             new SpacerElement(DcSp6, 0f),
         }, Gap: 0.01f))
         {
-            FillColorFn = () => DcTile(), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = Dc5RowW,
-            OutlineColorFn = () => DcMem(i) is { Me: true } ? Menu.MenuAccent with { A = 0.6f } : null,
+            FillColorFn = () => Fade(DcTile()), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = Dc5RowW,
+            OutlineColorFn = () => FadeRing(DcMem(i) is { Me: true } ? Menu.MenuAccent with { A = 0.6f } : null),
         },
         DcEmptyRow(Dc5RowW));
 
@@ -435,17 +439,33 @@ public sealed partial class Plugin
     private HudElement DcEmptyRow(float rowW) => new BubbleElement(new RowElement(new HudElement[]
     {
         new SpacerElement(DcRowLead, DcRowH),
-        new CellElement(DcSmall(() => "Empty", () => MutedColor() with { A = 0.6f }, DcFsBody), Width: rowW - DcRowLead),
+        new CellElement(DcSmall(() => L("dc.empty"), () => MutedColor() with { A = 0.6f }, DcFsBody), Width: rowW - DcRowLead),
     }, Gap: 0.01f))
     {
-        FillColorFn = () => Mix(PanelColor(), DcTile(), 0.45f), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f,
+        FillColorFn = () => Fade(Mix(PanelColor(), DcTile(), 0.45f)), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f,
         MaxWidth = rowW,
     };
 
-    // "123,456"; a bot/AI or a player whose score the game didn't send (match strangers) shows "—". Cached per member
-    // (the label Func runs every frame).
-    private static string DcScoreText(DcMember? m) =>
-        m == null ? "" : m.ScoreText ??= m.Ai || m.Score <= 0 ? "—" : m.Score.ToString("N0", CultureInfo.InvariantCulture);
+    // "AS (IBS)" = "66,084 (4,675)" (ability score, then Illusion-Breaking Strength); no IBS → "66,084"; a bot/AI or a
+    // player whose score the game didn't send (match strangers) shows "—". ONE RichEmoji (TMP) text: the element colour
+    // (muted) draws the score and an inline <color> tag draws the bracket one shade fainter — Muted 40 % toward the row
+    // Tile, opaque (an <alpha> tag is TMP-only and would fight the element alpha). Cached per member (the label Func runs
+    // every frame); the ink is theme-live, so the cache also keys on it and a theme change rebuilds the string.
+    private string DcScoreText(DcMember? m)
+    {
+        if (m == null) return "";
+        var ink = Mix(MutedColor(), DcTile(), 0.4f);
+        if (m.ScoreText != null && m.ScoreInk == ink) return m.ScoreText;
+        m.ScoreInk = ink;
+        if (m.Ai || m.Score <= 0) return m.ScoreText = "—";
+        var score = m.Score.ToString("N0", CultureInfo.InvariantCulture);
+        if (m.Ibs <= 0) return m.ScoreText = score;
+        return m.ScoreText = score + " <color=#" + DcHex(ink) + ">(" + m.Ibs.ToString("N0", CultureInfo.InvariantCulture) + ")</color>";
+    }
+
+    private static string DcHex(ColorRgba c) =>
+        ((int)MathF.Round(c.R * 255f)).ToString("x2") + ((int)MathF.Round(c.G * 255f)).ToString("x2")
+        + ((int)MathF.Round(c.B * 255f)).ToString("x2");
 
     // Bold name that ellipsizes (its min width is 0) next to the fixed-width ASSIST tag (min = preferred), so in the cell
     // only the name gives way and the tag stays right after it. No YOU tag: the accent outline marks my row.
@@ -453,6 +473,6 @@ public sealed partial class Plugin
     {
         new TextElement(() => m()?.Name ?? "", Color: () => TextColor(), NoWrap: true, FontSize: DcFsBody)
             { Bold = true, Ellipsize = true },
-        new ConditionalElement(() => withAssist && m() is { Assist: true }, DcBold(() => "ASSIST", () => Menu.MenuAccent, DcFsTag, DcAssistW)),
+        new ConditionalElement(() => withAssist && m() is { Assist: true }, DcBold(() => L("dc.assist"), () => Menu.MenuAccent, DcFsTag, DcAssistW)),
     }, Gap: DcSp4);
 }

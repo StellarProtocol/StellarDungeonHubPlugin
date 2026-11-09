@@ -65,6 +65,18 @@ public sealed partial class Plugin
     local hvm = Z.VMMgr.GetVM('hero_dungeon_main')
     local mtvm = Z.VMMgr.GetVM('match_team')
     local sid = try(function() return Z.VMMgr.GetVM('season').GetCurrentSeasonId() end, nil)
+    -- recommended Illusion-Breaking Strength of a DungeonsTable / MasterChallengeDungeonTable row, the game's own rule
+    -- (dungeon_vm.lua:621-642 GetRecommendSeasonStrengthText): season_data.CurSeasonId in row.Season AND exactly 3
+    -- SeasonLv entries → SeasonLv[3]; else 0 (C# then shows the AS alone). Its own season read, as the game does.
+    local ibsSid = try(function() return Z.DataMgr.Get('season_data').CurSeasonId end, nil)
+    local function ibsOf(row)
+      return try(function()
+        if not ibsSid or not row or not row.Season or not table.zcontains(row.Season, ibsSid) then return 0 end
+        local lv = row.SeasonLv
+        if not lv or #lv ~= 3 then return 0 end
+        return tonumber(lv[3]) or 0
+      end, 0)
+    end
     local function funcOn(fid) return try(function() return Z.VMMgr.GetVM('switch').CheckFuncSwitch(fid) and true or false end, false) end
     local function strip(s) return (tostring(s or ''):gsub('<[^>]*>', '')) end
     -- true, '' when met (or empty); else false + the first unmet condition's text (tags stripped)
@@ -126,6 +138,8 @@ public sealed partial class Plugin
     end) end
     local inDun = try(function() return Z.StageMgr.GetIsInDungeon() and true or false end, false)
     local myFp = try(function() return Z.ContainerMgr.CharSerialize.fightPoint.totalFightPoint end, 0)
+    -- my live IBS, Dungeon Confirm's read (Plugin.DungeonConfirm.Lua.cs myIbs; team_hall_view.lua:120)
+    local myIbs = tonumber(try(function() return Z.EntityMgr.PlayerEnt:GetLuaAttr(Z.PbAttrEnum('AttrSeasonStrength')).Value end, 0)) or 0
     -- pending page open: apply our preselection once the page is up and has run its own first refresh
     local ost = ''
     local p = st.pend
@@ -158,7 +172,7 @@ public sealed partial class Plugin
       end)
       if not okP then ost = 'E ' .. tostring(err) st.pend = nil end
     end
-    rec('T', b(inTeam), b(leader), cnt, max, mType, mDun, mDiff, mAct, mEl, mName, mDiffName, b(inDun), myFp, ost)
+    rec('T', b(inTeam), b(leader), cnt, max, mType, mDun, mDiff, mAct, mEl, mName, mDiffName, b(inDun), myFp, ost, myIbs)
 " + DhWbPollLua + DhGhPollLua + DhCmPollLua + @"
     -- Master levels of the selected hero dungeon
     if SEL > 0 then pcall(function()
@@ -177,7 +191,7 @@ public sealed partial class Plugin
         if r then
           local sok, why = condOk(r.SingleAiCondition)
           rec('M', diff, SEL, r.DungeonTypeName, b(dunOn and diff <= maxD + 1), r.RecommendFightValue, b(r.SingleAiMode == 1), b(sok), why,
-            b(canMatch(SEL, diff)), 'First clear', done[diff] and 'Cleared' or 'Reward ready', 0, b(diff <= maxD))
+            b(canMatch(SEL, diff)), 'First clear', done[diff] and 'Cleared' or 'Reward ready', 0, b(diff <= maxD), ibsOf(r))
         end
       end
     end) end

@@ -13,7 +13,8 @@ namespace Stellar.DungeonHub;
 //   • activities: the recommended-play BackGroundPic (SeasonActTable) or ActivityDungeonTable.Background; World Boss:
 //     this week's WorldBossSwitchTable.RecommendMainPic (→ MainPic) once the server's boss info is in (DhArtOf).
 // Loaded with IGameAssets.LoadByPath (null while loading → the box shows its empty tile, no layout jump) and cropped
-// to the box's aspect with DcCrop (raid: the cut-out's opaque band keeps the bosses' heads in).
+// to the box's aspect with DcCrop (raid: the cut-out's opaque band keeps the bosses' heads in). New loads and raid
+// composes are rationed per frame (DhLoad / DhComposeAllowed, .ArtLoad.cs) so an open never starts them all in one frame.
 public sealed partial class Plugin
 {
     private readonly UvRect[] _dhThumbUv = new UvRect[DhListSlots];
@@ -28,13 +29,13 @@ public sealed partial class Plugin
         new GameTextureElement(() => DhThumbTex(i), (int)DhThumbW, (int)DhThumbH, () => _dhThumbUv[i])
             { Fill = true, CornerRadius = (int)DcS(5f) })
     {
-        FillColorFn = () => DcTile(), CornerRadius = DcS(5f), PaddingX = 0f, PaddingY = 0f, MaxWidth = DhThumbW,
+        FillColorFn = () => Fade(DcTile()), CornerRadius = DcS(5f), PaddingX = 0f, PaddingY = 0f, MaxWidth = DhThumbW,
     }, Width: DhThumbW);
 
     private HudElement DhArtBand() => new BubbleElement(
         new GameTextureElement(DhBandTex, (int)DhDetInW, (int)DhArtH, () => _dhBandUv) { Fill = true, CornerRadius = (int)DhRadius })
     {
-        FillColorFn = () => DcTile(), CornerRadius = DhRadius, PaddingX = 0f, PaddingY = 0f,
+        FillColorFn = () => Fade(DcTile()), CornerRadius = DhRadius, PaddingX = 0f, PaddingY = 0f,
     };
 
     private object? DhThumbTex(int i)
@@ -63,7 +64,7 @@ public sealed partial class Plugin
         if (art.Length == 0) return null;
         object? tex; UvRect uv; float top = DcArtFocus, bot = DcArtFocus;
         if (bg.Length > 0) tex = DhRaidTex(bg, art, out uv, out top, out bot);
-        else tex = _services.GameAssets.LoadByPath(art, out uv);
+        else tex = DhLoad(art, out uv);   // per-frame request budget (.ArtLoad.cs)
         if (tex == null) return null;
         string key = $"{art}|{bg}|{(tex is UE.RenderTexture ? 'c' : 's')}|{top}|{bot}|{aspect}";
         if (key != cropKey) { cropKey = key; cropUv = DcCrop(tex, uv, aspect, top, bot); }
@@ -82,12 +83,15 @@ public sealed partial class Plugin
             if (alive) { top = c.Top; bot = c.Bot; return c.Rt; }
             if (c.Rt != null) { DhReleaseRt(c.Rt); _dhComp.Remove(key); c = null; }   // lost (device reset) → compose again
         }
-        var bgObj = _services.GameAssets.LoadByPath(bgPath, out var bgUv);
+        var bgObj = DhLoad(bgPath, out var bgUv);
         if (c is not { Failed: true })
         {
-            var cutObj = _services.GameAssets.LoadByPath(cutPath, out var cutUv);
+            var cutObj = DhLoad(cutPath, out var cutUv);
             if (bgObj != null && cutObj != null)
             {
+                // One compose per frame (.ArtLoad.cs): a deferred pair shows the empty tile one more frame, never the bare
+                // backdrop (that would swap to the composed art a frame later = a visible flick).
+                if (!DhComposeAllowed()) return null;
                 var rt = DcComposeRt(bgObj, bgUv, cutObj, cutUv, "DungeonHub", out var t, out var b);
                 _dhComp[key] = new DhComp { Rt = rt, Top = t, Bot = b, Failed = rt == null };
                 if (rt != null) { top = t; bot = b; return rt; }

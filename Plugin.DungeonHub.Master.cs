@@ -21,12 +21,11 @@ public sealed partial class Plugin
     private const int DhLvCount = 20, DhLvPerRow = 10;
     private static readonly float DhLvRing = DcS(2f), DhLvRadius = DcS(7f), DhLvBarH = DcS(3f);            // 3 · 11 · 5
     private static readonly string[] DhLvNums = DhNumbers(DhLvCount);
-    private static readonly string[] DhMasterLabels = DhNumbers(DhLvCount, "Master ");
 
-    private static string[] DhNumbers(int n, string prefix = "")
+    private static string[] DhNumbers(int n)
     {
         var a = new string[n];
-        for (int i = 0; i < n; i++) a[i] = prefix + (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        for (int i = 0; i < n; i++) a[i] = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
         return a;
     }
 
@@ -81,21 +80,21 @@ public sealed partial class Plugin
                 {
                     new CellElement(new BubbleElement(new SpacerElement(barW, DhLvBarH))
                     {
-                        FillColorFn = () => DhLvSoloMatch(diff) ? Menu.MenuAccent : Transparent,
+                        FillColorFn = () => Fade(DhLvSoloMatch(diff) ? Menu.MenuAccent : Transparent),
                         CornerRadius = 2f, PaddingX = 0f, PaddingY = 0f, MaxWidth = barW,
                     }, Width: barW),
                 }, Gap: 0.01f, Justify: RowJustify.Center),
             }, Gap: 0.01f))
             {
-                FillColorFn = () => DhLvSel(diff) ? DcWash(DhPurple, 0.3f) : Transparent,
+                FillColorFn = () => Fade(DhLvSel(diff) ? DcWash(DhPurple, 0.3f) : Transparent),
                 CornerRadius = DhLvRadius - DhLvRing, PaddingX = 0f, PaddingY = 0f, MaxWidth = innerW,
             }, Width: innerW);
         return new CellElement(new BubbleElement(new SelectableElement(
                 new RowElement(new HudElement[] { inner }, Gap: 0.01f, Justify: RowJustify.Center),
                 OnClick: () => DhSelectMaster(diff)) { Bare = true, OnHover = o => hover.On = o })
             {
-                FillColorFn = () => DhLvSel(diff) ? DhPurple
-                    : hover.On && DhLvClickable(diff) ? Over(Menu.MenuText with { A = 0.08f }, DhLvFill(diff)) : DhLvFill(diff),
+                FillColorFn = () => Fade(DhLvSel(diff) ? DhPurple
+                    : hover.On && DhLvClickable(diff) ? Over(Menu.MenuText with { A = 0.08f }, DhLvFill(diff)) : DhLvFill(diff)),
                 CornerRadius = DhLvRadius, PaddingX = DhLvRing, PaddingY = DhLvRing, MaxWidth = DhLvW,
             }, Width: DhLvW);
     }
@@ -107,19 +106,19 @@ public sealed partial class Plugin
         return new RowElement(new HudElement[]
         {
             new SpacerElement(0f, DhLegendH),
-            DhSwatch(() => DcWash(DhGreen, 0.3f), sw, sw), new SpacerElement(gap, 0f), DcSmall(() => "cleared", MutedColor, DhFsSub),
+            DhSwatch(() => DcWash(DhGreen, 0.3f), sw, sw), new SpacerElement(gap, 0f), DcSmall(() => L("dh.legend.cleared"), MutedColor, DhFsSub),
             new SpacerElement(group, 0f),
-            DhSwatch(() => DcNeutral(), sw, sw), new SpacerElement(gap, 0f), DcSmall(() => "next", MutedColor, DhFsSub),
+            DhSwatch(() => DcNeutral(), sw, sw), new SpacerElement(gap, 0f), DcSmall(() => L("dh.legend.next"), MutedColor, DhFsSub),
             new SpacerElement(group, 0f),
-            DhSwatch(() => Mix(PanelColor(), DcNeutral(), 0.5f), sw, sw), new SpacerElement(gap, 0f), DcSmall(() => "locked", MutedColor, DhFsSub),
+            DhSwatch(() => Mix(PanelColor(), DcNeutral(), 0.5f), sw, sw), new SpacerElement(gap, 0f), DcSmall(() => L("dh.legend.locked"), MutedColor, DhFsSub),
             new SpacerElement(group, 0f),
-            DhSwatch(() => Menu.MenuAccent, sw, DcSE(4f)), new SpacerElement(gap, 0f), DcSmall(() => "Solo + Match allowed", MutedColor, DhFsSub),
+            DhSwatch(() => Menu.MenuAccent, sw, DcSE(4f)), new SpacerElement(gap, 0f), DcSmall(() => L("dh.legend.soloMatch"), MutedColor, DhFsSub),
         }, Gap: 0.01f);
     }
 
-    private static HudElement DhSwatch(Func<ColorRgba> fill, float w, float h) => new CellElement(
+    private HudElement DhSwatch(Func<ColorRgba> fill, float w, float h) => new CellElement(
         new BubbleElement(new SpacerElement(w, h))
         {
-            FillColorFn = () => fill(), CornerRadius = MathF.Min(DcS(3f), h / 2f), PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
+            FillColorFn = () => Fade(fill()), CornerRadius = MathF.Min(DcS(3f), h / 2f), PaddingX = 0f, PaddingY = 0f, MaxWidth = w,
         }, Width: w);
 }

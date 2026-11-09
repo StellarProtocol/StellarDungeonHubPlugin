@@ -12,8 +12,8 @@ namespace Stellar.DungeonHub;
 // Width: panel inner 1000 − 32 = 968; the two group columns split it around a 12 gap → 478 each (even, so nothing
 // centres on a half pixel). Both columns are FIXED 478 cells and every row an exact 478 bubble (Dc5RowW note in
 // .Window.cs): weighted cells sized to content gave 532 vs 422 px columns in the 2026-11-06 raid. A row = 6 + icon 32 +
-// 12 + name + 12 + score 60 + 12 + mark 32 + 6 → the name cell is a fixed 306 (a 16-glyph bold-21 name ≈ 180, so
-// the small ability score costs no name). Every group always shows 5 rows; an unfilled slot is DcEmptyRow.
+// 12 + name + 12 + score 128 + 12 + mark 32 + 6 → the name cell is a fixed 238 (a 16-glyph bold-21 name ≈ 180, so
+// the small "AS (IBS)" score still costs no name). Every group always shows 5 rows; an unfilled slot is DcEmptyRow.
 public sealed partial class Plugin
 {
     private HudElement BuildDcRaidRoot() => new ColumnElement(new HudElement[]
@@ -22,7 +22,7 @@ public sealed partial class Plugin
         DcHeader(),
         DcBar(),
         // Caption by the CONTENT, layout by the team: a 20-person party in a 5-player dungeon is a PARTY (Lua.cs "raidContent").
-        DcPanel(() => _dc?.RaidContent == false ? "PARTY" : "RAID", DcReadyHint(),
+        DcPanel(() => L(_dc?.RaidContent == false ? "dc.cap.party" : "dc.cap.raid"), DcReadyHint(),
             new RowElement(new HudElement[]
             {
                 new CellElement(new ColumnElement(new HudElement[] { DcGroup(0), DcGroup(2) }, Gap: DcPanelGap), Width: DcRaidColW),
@@ -37,7 +37,7 @@ public sealed partial class Plugin
         if (_dc == null) return "";
         if (_dcEnd != DcEnd.None) return DcClosingText();
         int w = _dc.Waiting;
-        return w == 0 ? "" : $"{w} still waiting";
+        return w == 0 ? "" : LF("dc.stillWaiting", w);
     }
 
     private DcMember? DcCell(int cell) =>
@@ -52,7 +52,7 @@ public sealed partial class Plugin
             new RowElement(new HudElement[]
             {
                 new SpacerElement(0f, DcCaptionH),
-                DcBold(() => $"GROUP {g + 1}", MutedColor, DcFsSmall),
+                DcBold(() => LF("dc.cap.group", g + 1), MutedColor, DcFsSmall),
                 new SpacerElement(0f),
                 DcSmall(() => DcGroupHint(g), MutedColor),
             }, Gap: 0.01f),
@@ -83,8 +83,8 @@ public sealed partial class Plugin
             new SpacerElement(DcSp4, 0f),
         }, Gap: 0.01f))
         {
-            FillColorFn = () => DcTile(), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcRaidColW,
-            OutlineColorFn = () => DcCell(cell) is { Me: true } ? Menu.MenuAccent with { A = 0.6f } : null,
+            FillColorFn = () => Fade(DcTile()), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcRaidColW,
+            OutlineColorFn = () => FadeRing(DcCell(cell) is { Me: true } ? Menu.MenuAccent with { A = 0.6f } : null),
         },
         DcEmptyRow(DcRaidColW));
 
@@ -108,7 +108,7 @@ public sealed partial class Plugin
                     DcDrop(DcBold(() => DcState(m()) == 2 ? "…" : "", () => DcPillText(m()), DcFsMark, DcStatusH, TextAlign.Center)),
                 }, Gap: 0.01f, Justify: RowJustify.Center)))))
             {
-                FillColorFn = () => DcPillFill(m()), CornerRadius = DcStatusH / 2f - 1f, PaddingX = 0f, PaddingY = 0f,
+                FillColorFn = () => Fade(DcPillFill(m())), CornerRadius = DcStatusH / 2f - 1f, PaddingX = 0f, PaddingY = 0f,
                 MaxWidth = DcStatusH,
             }, Width: DcStatusH);
     }

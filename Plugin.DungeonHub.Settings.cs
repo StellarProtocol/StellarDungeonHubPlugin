@@ -19,6 +19,7 @@ public sealed partial class Plugin
     {
         // Lazy: CentreOf captures the hub control, which only exists after InitDungeonHub.
         _dcSettingsCentre ??= new WindowCenterer(_services.Framework, _dcSettingsWindow, WindowCenterer.CentreOf(_dhWin));
+        DcRefreshSoundList(force: true);   // the sound dropdowns re-list the folder on every open (.SoundFiles.cs)
         _dcSettingsCentre.OpenCentred();
     }
 
@@ -26,6 +27,7 @@ public sealed partial class Plugin
     {
         _dcSettingsCentre?.Stop();
         _dcSettingsWindow.SetVisible(false);
+        FlushOpacity();   // a debounced opacity slider value is saved on close (.WindowOpacity.cs)
     }
 
     // Icon-only gear (house §4, same 28 px build as DhCloseButton): no fill at rest + muted glyph; hover = accent wash +
@@ -42,7 +44,7 @@ public sealed partial class Plugin
                 new SpacerElement(side, DhCloseW),
             }, Gap: 0.01f, Justify: RowJustify.Center), OnClick: DhOpenSettings) { Bare = true, OnHover = o => hover.On = o })
             {
-                FillColorFn = () => hover.On ? Over(Menu.MenuAccent with { A = 0.22f }, Menu.MenuBackground) : Transparent,
+                FillColorFn = () => Fade(hover.On ? Over(Menu.MenuAccent with { A = 0.22f }, Menu.MenuBackground) : Transparent),
                 CornerRadius = DhCloseW / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DhCloseW,
             }, Width: DhCloseW);
     }

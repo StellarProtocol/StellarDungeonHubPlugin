@@ -41,10 +41,11 @@ public sealed partial class Plugin
     private void InitDungeonHub()
     {
         _dhTab = Math.Clamp(_cfg.Get<int>("dungeon_hub_tab", 0), 0, DhTabCount - 1);
+        DhBuildLiveText();       // the header / bar texts before the first poll ("Solo", "Not in a party")
         _dhWin = DhRegister();   // Plugin.DungeonHub.Window.cs
         // Registered UNBOUND (null default key) — rebindable in the hotkey settings, the user assigns the key.
         _dhHotkey = _services.Hotkeys.DeclareAction(
-            new HotkeyAction("dungeonhub.hub-toggle", "Toggle Dungeon Hub window", null),
+            new HotkeyAction("dungeonhub.hub-toggle", L("dh.hotkey.toggle"), null),
             callback: () => { if (_services.ClientState.Phase == GamePhase.World) { if (_dhShow) DhHide(); else DhOpen(); } });
         _services.ClientState.Logout += OnDhLogout;
         _dhTick = _services.Framework.Every(TimeSpan.FromSeconds(DhPollSec), DhTick);
@@ -52,7 +53,7 @@ public sealed partial class Plugin
         // dungeons_v2b.png). The framework only injects the rail in-world; the phase check mirrors the hotkey anyway.
         // Click always OPENS (DhOpen fronts an already-visible hub) — the Esc menu may stay up behind it.
         _dhRailButton = _services.NativeUi.Register(new MenuButtonSpec(
-            NativeUiAnchor.MainMenuRail, "Dungeon Hub", IconKey: null, Tooltip: "Open Dungeon Hub",
+            NativeUiAnchor.MainMenuRail, L("dh.title"), IconKey: null, Tooltip: L("dh.rail.tooltip"),
             OnClick: () => { if (_services.ClientState.Phase == GamePhase.World) DhOpen(); },
             IconPng: CachedPng("dungeons-esc-icon.png")));
     }
@@ -68,12 +69,13 @@ public sealed partial class Plugin
     }
 
     // Logout runs synchronously (Update is world-gated): hide now and forget the open in flight.
-    private void OnDhLogout() { DhHide(); _dhOpening = false; _dhHaveCatalog = false; }
+    private void OnDhLogout() { DhHide(); _dhOpening = false; _dhHaveCatalog = false; DhWarmRearm(); }
 
     // Every open lands centred and in front. Fronting on EVERY open is the house OpenCentred rule: ZFront is sticky
     // (WindowBuilder-Patterns.md), and this plugin already fronts the Dungeon Confirm windows on each show.
     private void DhOpen()
     {
+        DhWarmEnd();   // a real open takes over (no-op once the warm-up finished)
         _dhShow = true;
         _dhFullDue = true;
         _dhWin.SetVisible(true);
@@ -99,19 +101,23 @@ public sealed partial class Plugin
         DhRecentreOnCanvasChange();
         DhFollowEnter();   // the direct enter's RPC result (.Enter.cs), followed while hidden too
         DhCmFollow();      // a commission Accept / Teleport RPC result (.Commissions.cs)
+        DhWarmTick();      // the first-open warm-up after entering the world, one stage per tick (.Prewarm.cs)
         if (!_dhShow && !_dhOpening) return;
         DhPoll();
     }
 
-    private void DhPoll()
+    // warm: the hidden warm-up's FULL poll (.Prewarm.cs) — a catalog read while the window is hidden, which a normal
+    // hidden poll (following a page open) never does.
+    private void DhPoll(bool warm = false)
     {
         if (_services.ClientState.Phase != GamePhase.World || !_services.Lua.Ready) return;
         bool due = _dhFullAt > 0 && DcNow >= _dhFullAt;
         if (due) _dhFullAt = 0;
         bool full = _dhFullDue || due || !_dhHaveCatalog || ++_dhPolls % DhFullEvery == 0;
         _dhFullDue = false;
+        full = full && (_dhShow || warm);
         var cur = _dhTab == DhTabHero ? DhCur : null;
-        _services.Lua.DoString(DhPollChunk(full && _dhShow, cur?.MasterId ?? 0));
+        _services.Lua.DoString(DhPollChunk(full, cur?.MasterId ?? 0));
         var raw = _services.Lua.ReadGlobalString("__stellarDHSnap");
         if (raw == null) return;
         if (raw.StartsWith("ERR", StringComparison.Ordinal))
@@ -234,14 +240,18 @@ public sealed partial class Plugin
     }
 
     // ── centring: every open lands dead centre, then the window is the user's to drag (Dungeon Confirm's recipe, ──
-    // Plugin.DungeonConfirm.Centre.cs: re-centre each frame for ~0.5 s after the show — the first SetRect is a no-op
-    // until mounted and the mount restores the saved rect — then only on a canvas size change).
+    // Plugin.DungeonConfirm.Centre.cs: re-centre each plugin tick for DcCentreFrames ticks after the show — the first
+    // SetRect is a no-op until mounted and the mount restores the saved rect — then only on a canvas size change).
+    // The burst ends the moment the window moves under us (a user drag — DcUserMoved): before that check, every burst
+    // tick dragged it back to centre, so the first drag after an open snapped back (user report 2026-11-08).
     private int   _dhCentreLeft;
     private bool  _dhCentreSub;
     private float _dhCentreCw, _dhCentreCh;
+    private (float X, float Y)? _dhPlaced;   // where we last left the mounted window (null = not mounted / not placed yet)
 
     private void DhStartCentring()
     {
+        _dhPlaced = null;
         DhCentreNow();
         _dhCentreLeft = DcCentreFrames;
         if (!_dhCentreSub) { _services.Framework.Update += OnDhCentreFrame; _dhCentreSub = true; }
@@ -256,6 +266,7 @@ public sealed partial class Plugin
     private void OnDhCentreFrame(float _)
     {
         if (--_dhCentreLeft < 0 || !_dhShow) { DhStopCentring(); return; }
+        if (DcUserMoved(_dhWin, _dhPlaced)) { DhStopCentring(); return; }   // dragged → the user's now
         DhCentreNow();
     }
 
@@ -263,7 +274,8 @@ public sealed partial class Plugin
     {
         if (_dhCentreSub || !_dhShow || _dhCentreCw <= 1f) return;
         float cw = _services.Framework.CanvasWidth, ch = _services.Framework.CanvasHeight;
-        if (Math.Abs(cw - _dhCentreCw) >= 0.5f || Math.Abs(ch - _dhCentreCh) >= 0.5f) DhCentreNow();
+        if (Math.Abs(cw - _dhCentreCw) >= 0.5f || Math.Abs(ch - _dhCentreCh) >= 0.5f)
+            DhCentreNow();
     }
 
     private void DhCentreNow()
@@ -275,7 +287,8 @@ public sealed partial class Plugin
         var r = _dhWin.Rect;
         float h = r.Height > 1f ? r.Height : DhH;
         float x = MathF.Max(0f, MathF.Floor((cw - DhW) / 2f)), y = MathF.Max(0f, MathF.Floor((ch - h) / 2f));
-        if (Math.Abs(r.X - x) < 0.5f && Math.Abs(r.Y - y) < 0.5f && Math.Abs(r.Width - DhW) < 0.5f) return;
-        _dhWin.SetRect(new WindowRect(x, y, DhW, h));
+        if (!(Math.Abs(r.X - x) < 0.5f && Math.Abs(r.Y - y) < 0.5f && Math.Abs(r.Width - DhW) < 0.5f))
+            _dhWin.SetRect(new WindowRect(x, y, DhW, h));
+        _dhPlaced = DcPlacedPos(_dhWin);   // the live (on-screen-clamped) pose, read back after the set
     }
 }

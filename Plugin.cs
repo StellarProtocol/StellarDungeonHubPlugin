@@ -24,19 +24,26 @@ public sealed partial class Plugin : IStellarPlugin
     public Plugin(IPluginServices services)
     {
         _services = services;
+        _loc = services.Localization;   // first: every window / hotkey below reads its text through it (Plugin.Loc.cs)
         _cfg = _services.Config.GetSection("settings");
+        LoadWindowOpacity();    // before any window registers: their FrameOpacity / fills read it (Plugin.WindowOpacity.cs)
 
         InitDungeonConfirm();   // Dungeon Confirm: own window instead of the game's team_enter confirm (Plugin.DungeonConfirm*.cs)
         InitDungeonHub();       // Dungeon Hub: every dungeon / raid / activity in one window (Plugin.DungeonHub*.cs)
         _services.ClientState.Logout += OnSettingsLogout;
 
-        // The one launcher tile — the Esc-menu gate icon, in-world only (the hub itself only renders in World).
+        // The one launcher tile — the gate icon in WHITE (the hub header's recolour, .DungeonHub.Icon.cs), in-world only
+        // (the hub itself only renders in World). The grey original looked dark / muddy next to the other launchers'
+        // white icons (user, 2026-11-07); the Esc-menu rail button keeps the grey one, which matches the game's rail.
+        // Baked once here (bytes, not a Func); a failed recolour falls back to the grey PNG.
         _launchers.Add(_services.Launcher.Register(new LauncherEntry(
             Title:   "Dungeon Hub",
-            IconPng: CachedPng("dungeons-esc-icon.png"),
+            IconPng: DhGateWhitePng() ?? CachedPng("dungeons-esc-icon.png"),
             IconKey: null,
             OnOpen:  DhOpen)
         { Group = LauncherGroup.Plugin,
+          // Title stays the fixed literal (the pin identity); the tile DISPLAYS the localized name.
+          TitleProvider = () => _loc.T("dh.title"),
           ShouldShow = () => _services.ClientState.Phase == GamePhase.World }));
 
         _services.Log.Info("[DungeonHub] constructed");
@@ -45,34 +52,11 @@ public sealed partial class Plugin : IStellarPlugin
     // Logout runs synchronously (Update is world-gated): the settings child closes with the hub (house §5).
     private void OnSettingsLogout() => DhHideSettings();
 
-    // Registers a hidden, draggable menu window (no launcher tile) — the Dungeon Confirm settings window.
-    // DefaultRect is a fixed literal (calibrated to the 2560×1440 reference canvas), NOT derived from ScreenWidth:
-    // "reset all HUD" restores it from a path where ScreenWidth reads 0 → a ScreenWidth-relative x lands off-screen
-    // (WindowBuilder-Patterns.md §"DefaultRect must be a CONSTANT"). Every open re-centres it on the hub anyway.
-    // In-world only and hidden during loading (house §5).
-    private IWindowControl RegisterWindow(string id, string title, HudElement root, float width = 440f)
-    {
-        IWindowControl w = null!;
-        w = _services.Windows.Register(new WindowRegistration(
-            Spec: new WindowSpec(
-                Id:          id,
-                Title:       title,
-                DefaultRect: new WindowRect(MathF.Min(2100f, 2540f - width), 20f, width, 0f),
-                Category:    WindowCategory.Tools,
-                Style:       WindowPanelStyle.GlassMenu)
-            { Draggable = true, Closable = true, StartVisible = false,
-              ShouldRender = () => _services.ClientState.Phase == GamePhase.World &&
-                                   (_services.ClientState.UiState & GameUIState.Loading) == 0 },
-            Root: root,
-            OnClose: () => w!.SetVisible(false)));
-        _windows.Add(w);
-        return w;
-    }
-
     public void Dispose()
     {
         _services.ClientState.Logout -= OnSettingsLogout;
         _dcSettingsCentre?.Stop();
+        FlushOpacity();
         DisposeDungeonConfirm();
         DisposeDungeonHub();
         foreach (var l in _launchers) l.Dispose();
