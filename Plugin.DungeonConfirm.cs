@@ -121,16 +121,10 @@ public sealed partial class Plugin
         int seq = DcInt(h[1]);
         bool open = h[2] == "1", native = h[3] == "1";
         // Head tail (Lua.cs DcVoteHook / poll): who refused this request (charId, '' = unknown), the end kind
-        // (R / C / T / ''), the drained vote queue — one diagnostic line per vote, to prove in game what arrived — then
-        // the TimeOut and Agree voters (charIds joined by ',').
+        // (R / C / T / ''), the drained vote queue (h[6], not read here), then the TimeOut and Agree voters (charIds
+        // joined by ',').
         string refuser = h.Length > 4 ? h[4] : "", endKind = h.Length > 5 ? h[5] : "", touts = h.Length > 7 ? h[7] : "";
         string agrees = h.Length > 8 ? h[8] : "";
-        if (h.Length > 6 && h[6].Length > 0)
-            foreach (var v in h[6].Split(';'))
-            {
-                var p = v.Split(':');
-                if (p.Length >= 4) _services.Log.Info($"[DungeonConfirm] vote charId={p[0]} code={p[1]} ({p[2]}) seq={p[3]}");
-            }
 
         if (id != _dcStashId || seq != _dcSeq)
         {

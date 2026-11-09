@@ -43,10 +43,7 @@ public sealed partial class Plugin
         var e = DhAt(i);
         if (e == null) return null;
         _dhThumbKey[i] ??= "";
-        long t0 = DhPerfNow();
-        var tex = DhTex(DhArtOf(e), e.ArtBg, DhThumbW / DhThumbH, ref _dhThumbKey[i], ref _dhThumbUv[i]);
-        DhArtSpent(t0);
-        return tex;
+        return DhTex(DhArtOf(e), e.ArtBg, DhThumbW / DhThumbH, ref _dhThumbKey[i], ref _dhThumbUv[i]);
     }
 
     private object? DhBandTex()
@@ -59,10 +56,7 @@ public sealed partial class Plugin
             if (DhIsMaster) { if (e.MasterArt.Length > 0) { art = e.MasterArt; bg = ""; } }
             else if (DhCurLevel is { Art.Length: > 0 } l) { art = l.Art; bg = l.ArtBg; }
         }
-        long t0 = DhPerfNow();
-        var tex = DhTex(art, bg, DhDetInW / DhArtH, ref _dhBandKey, ref _dhBandUv);
-        DhArtSpent(t0);
-        return tex;
+        return DhTex(art, bg, DhDetInW / DhArtH, ref _dhBandKey, ref _dhBandUv);
     }
 
     private object? DhTex(string art, string bg, float aspect, ref string cropKey, ref UvRect cropUv)
@@ -98,10 +92,7 @@ public sealed partial class Plugin
                 // One compose per frame (.ArtLoad.cs): a deferred pair shows the empty tile one more frame, never the bare
                 // backdrop (that would swap to the composed art a frame later = a visible flick).
                 if (!DhComposeAllowed()) return null;
-                long t0 = DhPerfNow();
                 var rt = DcComposeRt(bgObj, bgUv, cutObj, cutUv, "DungeonHub", out var t, out var b);
-                DhPerfLog("art.compose (first raid art)", t0);
-                _dhArtComposed++;
                 _dhComp[key] = new DhComp { Rt = rt, Top = t, Bot = b, Failed = rt == null };
                 if (rt != null) { top = t; bot = b; return rt; }
             }

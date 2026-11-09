@@ -12,8 +12,7 @@ namespace Stellar.DungeonHub;
 //      false, and ShouldRender only gates ACTIVATION, not the mount (WindowBuilder-Patterns.md "PRE-WARM a lazily-built
 //      window"), so the tree is built but never activated — no flash, no input — then SetVisible(false) parks it. The
 //      real open then just unparks. ⚠️ Conditional branch CONTENT is built lazily on the first Apply, and a hidden
-//      window never Applies — so the list rows and the right-hand panel still build on the first real open. The
-//      "open#1 frames" probe line shows what that costs.
+//      window never Applies — so the list rows and the right-hand panel still build on the first real open.
 //   4. ART — the saved tab's list thumbs + the selected entry's band are requested through DhLoad's per-frame budget
 //      (.ArtLoad.cs) — async loads, so they're usually in by the first open. Raid composes are NOT warmed (the RTs are
 //      released on every hide anyway; DhComposeAllowed spreads them).
@@ -29,14 +28,13 @@ public sealed partial class Plugin
     private double _dhWarmSince = -1;   // DcNow the world first looked settled (-1 = not yet / reset by loading)
     private bool   _dhWarmMounted;      // the hidden mount happened (kept across relogs: the tree stays parked)
     private int    _dhWarmArtAt;        // next list slot to ask art for (stage 5)
-    private long   _dhWarmT0;
 
     private const int DhWarmDone = 6;
 
     private void DhWarmTick()
     {
         if (_dhWarmStage >= DhWarmDone) return;
-        if (_dhShow || _dhOpening) { DhWarmEnd("hub opened first"); return; }
+        if (_dhShow || _dhOpening) { DhWarmEnd(); return; }
         bool ready = _services.ClientState.Phase == GamePhase.World && _services.Lua.Ready &&
                      (_services.ClientState.UiState & GameUIState.Loading) == 0;
         if (_dhWarmStage == 0)
@@ -45,12 +43,11 @@ public sealed partial class Plugin
             if (_dhWarmSince < 0) { _dhWarmSince = DcNow; return; }
             if (DcNow - _dhWarmSince < DhWarmDelaySec) return;
             _dhWarmStage = 1;
-            _dhWarmT0 = DhPerfNow();
         }
         if (!ready) return;   // a loading screen mid-way: hold the stage, carry on after it
         switch (_dhWarmStage)
         {
-            case 1:   // catalog: one FULL poll while hidden (DhPoll times it as poll.full#1)
+            case 1:   // catalog: one FULL poll while hidden
                 DhPoll(warm: true);
                 if (!_dhHaveCatalog) return;   // poll failed / snapshot not in yet → retry next tick
                 for (int t = 0; t < DhTabCount; t++)
@@ -58,19 +55,13 @@ public sealed partial class Plugin
                 break;
             case 2:   // glyphs: the header ✕ (muted / hover red) and ⚙ (muted / hover accent), as Window.cs / Settings.cs bake them
             {
-                long t0 = DhPerfNow();
                 float glyph = DcSE(12f);
                 DcGlyphPng(DcGlyph.Cross, glyph, MutedColor()); DcGlyphPng(DcGlyph.Cross, glyph, DhRed);
                 DcGlyphPng(DcGlyph.Gear, glyph, MutedColor()); DcGlyphPng(DcGlyph.Gear, glyph, Menu.MenuAccent);
-                DhPerfLog("warm.glyphs", t0);
                 break;
             }
-            case 3:   // mount hidden (ShouldRender false → built, never activated); the probe times the framework's build
-                if (!_dhWarmMounted)
-                {
-                    DhProbeStart("warm.mount frames (hidden build of the window)", 4);
-                    _dhWin.SetVisible(true);
-                }
+            case 3:   // mount hidden (ShouldRender false → built, never activated)
+                if (!_dhWarmMounted) _dhWin.SetVisible(true);
                 break;
             case 4:   // park it again (a real open in between already returned above)
                 if (!_dhWarmMounted) { _dhWin.SetVisible(false); _dhWarmMounted = true; }
@@ -91,17 +82,11 @@ public sealed partial class Plugin
                 break;
             }
         }
-        if (++_dhWarmStage >= DhWarmDone) DhWarmEnd("done");
+        if (++_dhWarmStage >= DhWarmDone) DhWarmEnd();
     }
 
-    private void DhWarmEnd(string why)
-    {
-        if (_dhWarmStage >= DhWarmDone) return;
-        bool started = _dhWarmStage > 0;
-        _dhWarmStage = DhWarmDone;
-        if (started) DhPerfLog("warm.total", _dhWarmT0, $"{why}, {_dhArtAsked.Count} art paths asked, mounted={_dhWarmMounted}");
-        else _services.Log.Info($"[DhPerf] warm-up skipped: {why}");
-    }
+    // Done, or a real open came first (it does the rest itself).
+    private void DhWarmEnd() => _dhWarmStage = DhWarmDone;
 
     // Logout: the next character gets its own catalog warm-up; the parked window tree is reused as is.
     private void DhWarmRearm() { _dhWarmStage = 0; _dhWarmSince = -1; _dhWarmArtAt = 0; }

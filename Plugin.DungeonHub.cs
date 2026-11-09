@@ -64,7 +64,6 @@ public sealed partial class Plugin
         _dhHotkey?.Dispose();
         _dhRailButton?.Remove();   // the handle isn't IDisposable — Remove() pulls it and stops re-injection
         DhStopCentring();
-        DhProbeEnd();
         DhReleaseArt();
         _services.ClientState.Logout -= OnDhLogout;
     }
@@ -72,34 +71,20 @@ public sealed partial class Plugin
     // Logout runs synchronously (Update is world-gated): hide now and forget the open in flight.
     private void OnDhLogout() { DhHide(); _dhOpening = false; _dhHaveCatalog = false; DhWarmRearm(); }
 
-    private int _dhOpens;   // [DhPerf]: the first two opens are probed (#2 = the warm baseline to compare #1 against)
-
     // Every open lands centred and in front. Fronting on EVERY open is the house OpenCentred rule: ZFront is sticky
     // (WindowBuilder-Patterns.md), and this plugin already fronts the Dungeon Confirm windows on each show.
-    // [DhPerf] (.Perf.cs): the plugin-side stages of the FIRST open are timed once each; the frame probe catches the
-    // framework's mount / first Apply that follows SetVisible in the same frame.
     private void DhOpen()
     {
-        bool first = ++_dhOpens == 1;
-        long t0 = DhPerfNow(), t;
-        if (_dhOpens <= 2) DhProbeStart($"open#{_dhOpens} frames (warm-up {(_dhWarmStage >= DhWarmDone ? "finished" : $"at stage {_dhWarmStage}")})", 8);
-        DhWarmEnd("hub opened first");   // a real open takes over (no-op once the warm-up finished)
+        DhWarmEnd();   // a real open takes over (no-op once the warm-up finished)
         _dhShow = true;
         _dhFullDue = true;
-        t = DhPerfNow();
         _dhWin.SetVisible(true);
         _dhWin.BringToFront();
         DhStartCentring();
-        if (first) DhPerfLog("open.show", t);
         // today's Unstable set: ask the server again (async RPC); the catalog re-reads it on a FULL poll ~1.5 s later
-        t = DhPerfNow();
         if (_services.Lua.Ready) { _services.Lua.DoString(DhRefreshUnstableChunk); _dhFullAt = DcNow + 1.5; }
-        if (first) DhPerfLog("open.unstable-refresh", t);
-        t = DhPerfNow();
         DhWbFetch();   // this week's World Boss (art / name, and match_activity_vm needs it before a match)
-        if (first) DhPerfLog("open.wb-fetch", t);
-        DhPoll();   // fill at once when Lua is ready (a first open otherwise shows an empty list for 0.5 s) — timed in DhPoll
-        if (first) DhPerfLog("open.plugin-total", t0, "plugin side only; the framework's build lands in the open#1 frames line");
+        DhPoll();   // fill at once when Lua is ready (a first open otherwise shows an empty list for 0.5 s)
     }
 
     private void DhHide()
@@ -122,10 +107,7 @@ public sealed partial class Plugin
     }
 
     // warm: the hidden warm-up's FULL poll (.Prewarm.cs) — a catalog read while the window is hidden, which a normal
-    // hidden poll (following a page open) never does. [DhPerf]: the first two FULL polls and the first light one are
-    // timed by part (#1 pays the game's first table loads; #2 shows the warm cost).
-    private int _dhFullPolls, _dhLightPolls;
-
+    // hidden poll (following a page open) never does.
     private void DhPoll(bool warm = false)
     {
         if (_services.ClientState.Phase != GamePhase.World || !_services.Lua.Ready) return;
@@ -134,17 +116,9 @@ public sealed partial class Plugin
         bool full = _dhFullDue || due || !_dhHaveCatalog || ++_dhPolls % DhFullEvery == 0;
         _dhFullDue = false;
         full = full && (_dhShow || warm);
-        int n = full ? ++_dhFullPolls : ++_dhLightPolls;
-        bool timed = full ? n <= 2 : n == 1;
-        long t0 = DhPerfNow();
         var cur = _dhTab == DhTabHero ? DhCur : null;
-        var chunk = DhPollChunk(full, cur?.MasterId ?? 0);
-        long tLua = DhPerfNow();
-        _services.Lua.DoString(chunk);
-        double luaMs = DhPerfMs(tLua);
-        long tRead = DhPerfNow();
+        _services.Lua.DoString(DhPollChunk(full, cur?.MasterId ?? 0));
         var raw = _services.Lua.ReadGlobalString("__stellarDHSnap");
-        double readMs = DhPerfMs(tRead);
         if (raw == null) return;
         if (raw.StartsWith("ERR", StringComparison.Ordinal))
         {
@@ -153,11 +127,7 @@ public sealed partial class Plugin
             return;
         }
         _dhLastErr = "";
-        long tParse = DhPerfNow();
         DhParse(raw);
-        if (timed)
-            DhPerfLog($"poll.{(full ? "full" : "light")}#{n}{(warm ? " (warm-up, hidden)" : "")}", t0,
-                $"chunk {chunk.Length} chars, Lua DoString {luaMs:0.0} ms, read {readMs:0.0} ms ({raw.Length} chars), parse {DhPerfMs(tParse):0.0} ms");
         DhFollowOpen();
     }
 

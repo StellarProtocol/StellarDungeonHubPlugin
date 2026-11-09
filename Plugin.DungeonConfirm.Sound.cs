@@ -29,7 +29,7 @@ namespace Stellar.DungeonHub;
 // no Stop for that tag happened meanwhile (per-tag generation counters). DcWarmAll pre-builds both slots off-thread at
 // startup and after every volume / file change, so a real play is always a cache hit. DcMixer.Play/Stop only touch its
 // voice list: winmm is called from its own thread alone (a main-thread winmm call blocked until the previous tick
-// finished — the 2026-11-08 growing tick hitch). [DcPerf] logs the first 3 ticks' cost.
+// finished — the 2026-11-08 growing tick hitch).
 //
 // Tick timing: a 50 ms Every (main thread, arithmetic only) takes s = ceil(remaining) — exactly the number the window's
 // timer shows (DcTimerText) — and ticks when s is 1..10 and lower than the last ticked second.
@@ -49,8 +49,6 @@ public sealed partial class Plugin
     private readonly object _dcWavLock = new();
     private volatile DecodedAudio? _dcPcmEnter, _dcPcmTick;   // written once off-thread; the main thread only peeks
     private int _dcWarming; private volatile bool _dcWarmAgain;    // DcWarmAll coalescing
-    private int _dcPerfTicks;                                       // [DcPerf]: first 3 ticks of the session are logged
-    private bool _dcPerfOpenLogged;                                 // [DcPerf]: first open sound of the session
 
     private sealed class DcWavSlot { public DecodedAudio? Pcm; public int Vol = -1; public short[]? Wav; }
     private readonly DcWavSlot _dcSlotOpen = new(), _dcSlotTick = new();
@@ -85,12 +83,7 @@ public sealed partial class Plugin
     {
         _dcLastTick = int.MaxValue;
         if (!_dcSoundOpen || !_dcReplace) return;
-        long t0 = _dcPerfOpenLogged ? 0 : System.Diagnostics.Stopwatch.GetTimestamp();
         DcPlay(false, DcTagEnter);
-        if (t0 == 0) return;
-        _dcPerfOpenLogged = true;
-        _services.Log.Info($"[DcPerf] open sound: " +
-            $"{(System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0.000} ms on the main thread");
     }
 
     private void DcSoundStopTicks() { _dcGenTick++; _dcAudio?.Stop(DcTagTick); }
@@ -110,11 +103,7 @@ public sealed partial class Plugin
         if (s < 1 || s > 10 || s >= _dcLastTick) return;
         _dcLastTick = s;                                       // this second is spent, played or skipped
         if (!_dcSoundTicks) return;                            // mixes over a still-playing open sound
-        long t0 = _dcPerfTicks < 3 ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
         DcPlay(true, DcTagTick);
-        if (t0 != 0)
-            _services.Log.Info($"[DcPerf] tick {++_dcPerfTicks}/3 (s={s}): " +
-                $"{(System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0.000} ms on the main thread");
     }
 
     // Plays the open (tick = false) or tick sound under `tag`. Ready image → now; otherwise decode / bake on a short
