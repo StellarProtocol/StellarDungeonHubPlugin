@@ -111,6 +111,7 @@ public sealed partial class Plugin
             return;
         }
 
+        if (DcIdleSkip()) return;   // in a dungeon run with nothing up: 1 Hz instead of 5 (.DungeonConfirm.Idle.cs)
         var head = DcPoll();        // compiled once, then one short call per tick (.DungeonConfirm.Lua.cs)
         if (head == null) return;
         if (head == "X") { DcSetFlag(true); return; }   // Z.UIMgr re-created (relog) — reinstall + re-enable
@@ -119,6 +120,7 @@ public sealed partial class Plugin
         string id = h[0];
         int seq = DcInt(h[1]);
         bool open = h[2] == "1", native = h[3] == "1";
+        _dcHeadOpen = open;
         // Head tail (Lua.cs DcVoteHook / poll): who refused this request (charId, '' = unknown), the end kind
         // (R / C / T / ''), the drained vote queue (h[6], not read here), then the TimeOut and Agree voters (charIds
         // joined by ',').
