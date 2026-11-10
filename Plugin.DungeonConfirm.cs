@@ -111,8 +111,7 @@ public sealed partial class Plugin
             return;
         }
 
-        _services.Lua.DoString(DcPollChunk);
-        var head = _services.Lua.ReadGlobalString("__stellarDCHead");
+        var head = DcPoll();        // compiled once, then one short call per tick (.DungeonConfirm.Lua.cs)
         if (head == null) return;
         if (head == "X") { DcSetFlag(true); return; }   // Z.UIMgr re-created (relog) — reinstall + re-enable
         var h = head.Split('|');
