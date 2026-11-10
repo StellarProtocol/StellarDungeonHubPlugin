@@ -434,7 +434,8 @@ public sealed partial class Plugin
             FillColorFn = () => Fade(DcTile()), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = Dc5RowW,
             OutlineColorFn = () => FadeRing(DcMem(i) is { Me: true } ? Menu.MenuAccent with { A = 0.6f } : null),
         },
-        DcEmptyRow(Dc5RowW));
+        DcEmptyRow(Dc5RowW))
+        { Prebuild = true, PrebuildName = "dc.member5" };   // see DcRaidRow
 
     // Unfilled slot (5-player and raid): the same 42 px pitch and width, a faint Tile (45 % of the way from the panel),
     // muted "Empty" where the name starts — no icon, score or mark (user, 2026-11-06).
