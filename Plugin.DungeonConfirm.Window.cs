@@ -142,7 +142,9 @@ public sealed partial class Plugin
               TitleProvider = () => L("dc.title"),
               FrameOpacity = DhFrameOpacity,   // settings' custom opacity, null = theme (.WindowOpacity.cs)
               ShouldRender = () => on() && _services.ClientState.Phase == GamePhase.World &&
-                                   (_services.ClientState.UiState & GameUIState.Loading) == 0 },
+                                   (_services.ClientState.UiState & GameUIState.Loading) == 0,
+              // fw 2.30.0 pre-build (raid first open was 418 ms): filled off-screen with _dc == null — every lambda here is null-safe.
+              Prebuild = true },
             Root: root,
             OnClose: DcClose));
         _windows.Add(w);

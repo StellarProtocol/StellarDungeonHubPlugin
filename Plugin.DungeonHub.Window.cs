@@ -104,7 +104,13 @@ public sealed partial class Plugin
               TitleProvider = () => L("dh.title"),
               FrameOpacity = DhFrameOpacity,   // settings' custom opacity, null = theme (.WindowOpacity.cs)
               ShouldRender = () => _dhShow && _services.ClientState.Phase == GamePhase.World &&
-                                   (_services.ClientState.UiState & GameUIState.Loading) == 0 },
+                                   (_services.ClientState.UiState & GameUIState.Loading) == 0,
+              // Framework pre-build (fw 2.30.0): tree built at login, filled off-screen once in the world, so the first
+              // open no longer pays the ~200 ms mount. The fill usually lands behind the loading screen, before the
+              // catalog warm (.Prewarm.cs) — the list is still empty then, so the signature (catalog in, row count,
+              // tab, selected entry) re-fills it once the catalog arrives, and the open only re-activates rows.
+              Prebuild = true,
+              PrebuildSignature = () => HashCode.Combine(_dhTab, _dhHaveCatalog, DhList.Count, DhCur?.Key) },
             Root: BuildDhRoot(),
             OnClose: DhHide));
         _windows.Add(w);

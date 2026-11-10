@@ -91,7 +91,9 @@ public sealed partial class Plugin
             {
                 // One compose per frame (.ArtLoad.cs): a deferred pair shows the empty tile one more frame, never the bare
                 // backdrop (that would swap to the composed art a frame later = a visible flick).
-                if (!DhComposeAllowed()) return null;
+                // Hidden (the framework's off-screen Prebuild fill runs these Funcs too): never compose — an RT made now
+                // would be held until the next hide (DhReleaseArt only runs there); the open composes it.
+                if (!_dhShow || !DhComposeAllowed()) return null;
                 var rt = DcComposeRt(bgObj, bgUv, cutObj, cutUv, "DungeonHub", out var t, out var b);
                 _dhComp[key] = new DhComp { Rt = rt, Top = t, Bot = b, Failed = rt == null };
                 if (rt != null) { top = t; bot = b; return rt; }

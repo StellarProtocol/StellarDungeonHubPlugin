@@ -8,28 +8,26 @@ namespace Stellar.DungeonHub;
 //      game loads a table on its first touch. Run one FULL poll hidden → the open's own FULL poll finds them loaded.
 //      Its entry names are handed to IWindowHost.PrewarmText so their glyphs rasterize a few per frame in advance.
 //   2. GLYPHS — the header's ✕ and ⚙ PNGs (DcGlyphPng, both colours) are baked now instead of inside the build.
-//   3. MOUNT — the window is mounted HIDDEN: SetVisible(true) while _dhShow is false. ShouldRender (Window.cs) is
-//      false, and ShouldRender only gates ACTIVATION, not the mount (WindowBuilder-Patterns.md "PRE-WARM a lazily-built
-//      window"), so the tree is built but never activated — no flash, no input — then SetVisible(false) parks it. The
-//      real open then just unparks. ⚠️ Conditional branch CONTENT is built lazily on the first Apply, and a hidden
-//      window never Applies — so the list rows and the right-hand panel still build on the first real open.
-//   4. ART — the saved tab's list thumbs + the selected entry's band are requested through DhLoad's per-frame budget
+//   3. ART — the saved tab's list thumbs + the selected entry's band are requested through DhLoad's per-frame budget
 //      (.ArtLoad.cs) — async loads, so they're usually in by the first open. Raid composes are NOT warmed (the RTs are
 //      released on every hide anyway; DhComposeAllowed spreads them).
+// The window itself is NOT mounted here any more: WindowSpec.Prebuild (fw 2.30.0, DhRegister) builds the tree at login
+// and fills it off-screen in the world — Conditional branches and list rows included, which the old hidden
+// SetVisible(true)/(false) mount/park stage never reached (a hidden window never Applies). The catalog this warm-up
+// reads changes the hub's PrebuildSignature, so the framework re-fills it after stage 1.
 // One stage per poll tick (DhPollSec = 0.5 s), so no single frame does more than one. Starts DhWarmDelaySec after the
 // player is in the world, not loading, Lua up; restarts that wait on a loading screen. Any real open ends the warm-up
-// (the open does the rest itself). Re-armed on logout (the next character's catalog differs); the mount is kept.
+// (the open does the rest itself). Re-armed on logout (the next character's catalog differs).
 public sealed partial class Plugin
 {
     private const double DhWarmDelaySec = 8.0;
     private const int DhWarmArtPerTick = 3;
 
-    private int    _dhWarmStage;        // 0 waiting · 1 catalog · 2 glyphs · 3 mount · 4 park · 5 art · 6 done
+    private int    _dhWarmStage;        // 0 waiting · 1 catalog · 2 glyphs · 3 art · 4 done
     private double _dhWarmSince = -1;   // DcNow the world first looked settled (-1 = not yet / reset by loading)
-    private bool   _dhWarmMounted;      // the hidden mount happened (kept across relogs: the tree stays parked)
-    private int    _dhWarmArtAt;        // next list slot to ask art for (stage 5)
+    private int    _dhWarmArtAt;        // next list slot to ask art for (stage 3)
 
-    private const int DhWarmDone = 6;
+    private const int DhWarmDone = 4;
 
     private void DhWarmTick()
     {
@@ -60,13 +58,7 @@ public sealed partial class Plugin
                 DcGlyphPng(DcGlyph.Gear, glyph, MutedColor()); DcGlyphPng(DcGlyph.Gear, glyph, Menu.MenuAccent);
                 break;
             }
-            case 3:   // mount hidden (ShouldRender false → built, never activated)
-                if (!_dhWarmMounted) _dhWin.SetVisible(true);
-                break;
-            case 4:   // park it again (a real open in between already returned above)
-                if (!_dhWarmMounted) { _dhWin.SetVisible(false); _dhWarmMounted = true; }
-                break;
-            case 5:   // art: a few list thumbs (+ the band) per tick through the load budget — REQUESTS only: a raid entry
+            case 3:   // art: a few list thumbs (+ the band) per tick through the load budget — REQUESTS only: a raid entry
             {         // asks its two paths but never composes here (an RT made while hidden would be held until a hide)
                 var list = DhList;
                 int n = System.Math.Min(DhListSlots, list.Count), asked = 0;
@@ -88,6 +80,6 @@ public sealed partial class Plugin
     // Done, or a real open came first (it does the rest itself).
     private void DhWarmEnd() => _dhWarmStage = DhWarmDone;
 
-    // Logout: the next character gets its own catalog warm-up; the parked window tree is reused as is.
+    // Logout: the next character gets its own catalog warm-up (the framework re-fills the pre-built window per login).
     private void DhWarmRearm() { _dhWarmStage = 0; _dhWarmSince = -1; _dhWarmArtAt = 0; }
 }
