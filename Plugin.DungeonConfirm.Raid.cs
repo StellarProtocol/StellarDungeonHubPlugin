@@ -86,7 +86,10 @@ public sealed partial class Plugin
             FillColorFn = () => Fade(DcTile()), CornerRadius = DcRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DcRaidColW,
             OutlineColorFn = () => FadeRing(DcCell(cell) is { Me: true } ? Menu.MenuAccent with { A = 0.6f } : null),
         },
-        DcEmptyRow(DcRaidColW));
+        DcEmptyRow(DcRaidColW))
+        // fw 2.30.0: the window pre-build fills with _dc == null, so only the Empty branch would be built; Prebuild builds
+        // this member branch too (sliced, in the background), so a real confirm no longer builds 20 rows in its open frame.
+        { Prebuild = true, PrebuildName = "dc.memberRaid" };
 
     // 32 px round mark (R1 radius 15) on the state's wash. The leader's ★ (20 px) and the ✓ / ✕ (16 px) are generated
     // PNGs (Art.cs): ★ is not verified in the game fonts, and bold ✕ drew blank in the header. Only "…" stays text

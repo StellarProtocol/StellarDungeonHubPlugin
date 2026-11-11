@@ -15,7 +15,7 @@ A StellarResonance plugin that puts every dungeon in one place:
 dotnet build -c Release
 ```
 
-Requires Stellar framework 2.29.1 or newer (round slider knobs and the window-drag fixes). For a local deploy, copy `Local.props.example` to `Local.props` and set
+Requires Stellar framework 2.30.0 or newer (window pre-building, plus the round slider knobs and window-drag fixes from 2.29.1). For a local deploy, copy `Local.props.example` to `Local.props` and set
 `GameInstallDir` (deploys to `<game>\stellar\plugins\dungeonhub\`).
 
 ## License

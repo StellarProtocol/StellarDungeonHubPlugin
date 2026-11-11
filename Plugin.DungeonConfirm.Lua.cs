@@ -421,6 +421,28 @@ end)");
   rawset(_G, '__stellarDCSnap', ok and res or ('ERR ' .. tostring(res)))
 end)";
 
+    // The poll above is ~200 lines of Lua. Sending it through DoString every 200 ms meant marshalling + COMPILING it 5×/s
+    // whether or not a request was up — the ~1 ms 'stellar.dungeonhub' that showed on every [Hitch] line of the
+    // 2026-11-10 raid log. It is now compiled ONCE into a global function and each tick only runs a one-line call.
+    // The call clears the head first, so a missing function (first tick, or a fresh Lua state after a relog) reads as
+    // null → define it and call again. Bump the name's suffix whenever DcPollChunk changes, so a function left in _G by
+    // an older build can never answer for the new one.
+    private const string DcPollFn = "__stellarDCPollFn1";
+    private const string DcPollCall =
+        "rawset(_G, '__stellarDCHead', nil) local f = rawget(_G, '" + DcPollFn + "') if f then f() end";
+    private const string DcPollDefine = "rawset(_G, '" + DcPollFn + "', function()\n" + DcPollChunk + "\nend)";
+
+    // Runs the poll; returns the parked head (null = Lua not answering), as DoString(DcPollChunk) + the head read did.
+    private string? DcPoll()
+    {
+        _services.Lua.DoString(DcPollCall);
+        var head = _services.Lua.ReadGlobalString("__stellarDCHead");
+        if (head != null) return head;
+        _services.Lua.DoString(DcPollDefine);
+        _services.Lua.DoString(DcPollCall);
+        return _services.Lua.ReadGlobalString("__stellarDCHead");
+    }
+
     // Seq-guarded Lua helpers: each acts only while the stash is still the request the window is showing.
     private static string DcGuard(string body, int seq) =>
         "pcall(function() local m = Z.UIMgr local st = m and m.__stellarDC" +
