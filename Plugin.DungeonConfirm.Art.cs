@@ -163,9 +163,15 @@ public sealed partial class Plugin
                                  DcBold(label, () => EnsureContrast(color(), fill(), 4.5f), DcFsSmall), new SpacerElement(DcS(9f), 0f) }
             : new HudElement[] { new SpacerElement(DcS(9f), DcChipH),
                                  DcBold(label, () => EnsureContrast(color(), fill(), 4.5f), DcFsSmall), new SpacerElement(DcS(9f), 0f) };
+        // ⚠️ MaxWidth is load-bearing. With MaxWidth 0 a bubble caps at its PARENT's laid-out width — here the chip's own
+        // Conditional arm, whose width is just the bubble's last pinned width. Once the chip was pinned narrow (≈ icon
+        // chrome, label not yet measured — the pre-built window builds and warms these lazily, off-screen), every later
+        // re-measure was capped at that same width and the chip could never grow: label spilled under the next chip.
+        // A fixed cap (the whole row) lets it hug its label again; the labels are pre-cut to fit (DcFitAffixLabels).
         return new BubbleElement(new RowElement(parts, Gap: 0.01f))
         {
             FillColorFn = () => Fade(fill()), CornerRadius = DcChipH / 2f - 1f, PaddingX = 0f, PaddingY = 0f,
+            MaxWidth = DcAffixRowW,
         };
     }
 
