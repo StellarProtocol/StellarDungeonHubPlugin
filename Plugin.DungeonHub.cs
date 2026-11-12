@@ -119,6 +119,18 @@ public sealed partial class Plugin
         var cur = _dhTab == DhTabHero ? DhCur : null;
         _services.Lua.DoString(DhPollChunk(full, cur?.MasterId ?? 0));
         var raw = _services.Lua.ReadGlobalString("__stellarDHSnap");
+        // one-shot season diagnostic (.Lua.Catalog.cs, the CN season-4 empty-list hunt): parked once per Lua state on
+        // the first FULL poll; read before the ERR check so a catalog failure after it still gets logged. Off the hot
+        // path: only FULL polls, and only until logged once.
+        if (full && !_dhDiagLogged)
+        {
+            var diag = _services.Lua.ReadGlobalString("__stellarDHDiag");
+            if (diag != null)
+            {
+                _dhDiagLogged = true;
+                _services.Log.Info($"[DungeonHub] season diag: {diag}");
+            }
+        }
         if (raw == null) return;
         if (raw.StartsWith("ERR", StringComparison.Ordinal))
         {
@@ -132,6 +144,7 @@ public sealed partial class Plugin
     }
 
     private string _dhLastErr = "";
+    private bool _dhDiagLogged;
 
     // The page open in flight, from the poll's openState: applied / failed → log and done; still no page after
     // DhOpenWaitSec → walk to the NPC; page up but our preselect never applied → log and leave the page as it is.

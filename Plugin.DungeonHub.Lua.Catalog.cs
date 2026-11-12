@@ -75,11 +75,81 @@ public sealed partial class Plugin
       if try(function() return #row.FirstPassAward > 0 end, false) then return 1 end
       return 0
     end
+    -- which hero groups to list, in tiers (the CN client, season 4, listed NONE with tier 1 alone):
+    --   1) groups with a DungeonsTable row whose .Season holds the current season (g.cur) — always hits on SEA S3;
+    --   2) none: the NEWEST season any group's rows carry in .Season (max over every row), groups tagged with it;
+    --   3) still none (no season data at all): groups whose Normal row exists and whose FunctionID is on.
+    -- Tiers 2 / 3 only run when tier 1 finds nothing, so the SEA poll costs the same as before.
+    local show, tier, any = {}, 1, false
+    for _, gid in ipairs(order) do if groups[gid].cur then show[gid] = true any = true end end
+    if not any then
+      tier = 2
+      local maxS, gs = nil, {}
+      for _, gid in ipairs(order) do
+        local set = {}
+        gs[gid] = set
+        for star, r in pairs(groups[gid]) do
+          if type(star) == 'number' then pcall(function()
+            for _, v in pairs(DT.GetRow(r.DungeonId, true).Season) do
+              local s = tonumber(v)
+              if s then set[s] = true if not maxS or s > maxS then maxS = s end end
+            end
+          end) end
+        end
+      end
+      if maxS then
+        for _, gid in ipairs(order) do if gs[gid][maxS] then show[gid] = true end end
+      else
+        tier = 3
+        for _, gid in ipairs(order) do
+          local g1 = groups[gid][1]
+          local d = g1 and DT.GetRow(g1.DungeonId, true)
+          if d and funcOn(d.FunctionID) then show[gid] = true end
+        end
+      end
+    end
+    -- one-shot season diagnostic (once per Lua state, flag __stellarDHDiagDone): C# logs __stellarDHDiag once as
+    -- [DungeonHub] season diag. Fully pcall'd — it can never break the catalog. Bounded to 40 groups.
+    if not rawget(_G, '__stellarDHDiagDone') then
+      rawset(_G, '__stellarDHDiagDone', true)
+      pcall(function()
+        local nrows = 0
+        pcall(function() for _ in pairs(TM.GetTable('ChallengeHeroDungeonTableMgr').GetDatas()) do nrows = nrows + 1 end end)
+        local p = { 'sid=' .. tostring(sid) .. ' ibs=' .. tostring(ibsSid) .. ' tier=' .. tier .. ' rows=' .. nrows .. ' groups=' .. #order }
+        for i, gid in ipairs(order) do
+          if i > 40 then p[#p + 1] = '...' break end
+          local okG, line = pcall(function()
+            local g = groups[gid]
+            local stars = {}
+            for k in pairs(g) do if type(k) == 'number' then stars[#stars + 1] = k end end
+            table.sort(stars)
+            local id1 = g[1] and g[1].DungeonId or 0
+            local d = id1 ~= 0 and DT.GetRow(id1, true) or nil
+            local sv, si, fn = 'nil', '-', '-'
+            if d then
+              local s = d.Season
+              if s ~= nil then
+                local l = {}
+                pcall(function() for _, v in pairs(s) do l[#l + 1] = tostring(v) end end)
+                sv = type(s) .. ':' .. table.concat(l, ',')
+              end
+              si = try(function() return tostring(d.SeasonId) end, '?')
+              fn = tostring(funcOn(d.FunctionID))
+            end
+            local unl = try(function() return tostring(hvm.IsUnlockDungeonId(id1)) end, '?')
+            return 'g' .. tostring(gid) .. '[' .. table.concat(stars, ',') .. '] id=' .. tostring(id1) .. ' dt=' .. (d and 'y' or 'n') ..
+              ' Season=' .. sv .. ' SeasonId=' .. si .. ' fn=' .. fn .. ' unl=' .. unl .. ' show=' .. (show[gid] and 1 or 0)
+          end)
+          p[#p + 1] = okG and line or ('g' .. tostring(gid) .. ' ERR ' .. tostring(line))
+        end
+        rawset(_G, '__stellarDHDiag', table.concat(p, ' | '))
+      end)
+    end
     for _, gid in ipairs(order) do
       local g = groups[gid]
       local n = g[1]
       local nd = n and DT.GetRow(n.DungeonId, true)
-      if g.cur and nd then
+      if show[gid] and nd then
         local key = 'g' .. gid
         local mid = g[3] and g[3].DungeonId or 0
         local nOn = funcOn(nd.FunctionID) and try(function() return hvm.IsUnlockDungeonId(n.DungeonId) and true or false end, false)

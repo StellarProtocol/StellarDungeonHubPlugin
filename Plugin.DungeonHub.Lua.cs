@@ -11,7 +11,8 @@ namespace Stellar.DungeonHub;
 // Sources (Resources\release_3.7\lua\lua):
 //   list    (the catalog half lives in .Lua.Catalog.cs) hero: ChallengeHeroDungeonTable rows grouped by DungeonGroup
 //           → StarLevel 1/2/3 = Normal/Hard/Master ids (dungeon_vm.GetHeroDungeonGroup, the NPC's own grouping); a
-//           group is shown when one of its DungeonsTable rows has the current season in .Season. Raid:
+//           group is shown when one of its DungeonsTable rows has the current season in .Season (fallback tiers when
+//           none does — newest season tagged, then function-on; see .Lua.Catalog.cs). Raid:
 //           RaidDungeonTable by GroupId, .Difficult 1/2/3, same season test. Activities: fixed FunctionIDs
 //           (E.FunctionID WorldBoss / WeeklyHunt / UnionHunt / RogueMain, Trial Path 300301) + ActivityDungeonTable
 //           FunctionIds with a live Timer; names/art from recommendedplay_data (SeasonActTable), else FunctionTable.
