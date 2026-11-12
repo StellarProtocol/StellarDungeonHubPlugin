@@ -18,6 +18,11 @@ public sealed partial class Plugin
       if inSeason(DT.GetRow(r.DungeonId, true)) then g.cur = true end
     end
     table.sort(order)
+    -- a group's BASE row = its lowest star level present: Normal (1), else Hard (2). Season 4 (CN) groups have ONLY
+    -- Hard + Master (StarLevel 2 / 3, no Normal), so anchoring on g[1] dropped every one of them from the list.
+    -- The name, thumb fallback, lock state, cap and FunctionID come from it. bstar = which level that is (diag).
+    local function base(g) return g[1] or g[2] end
+    local function bstar(g) return g[1] and 1 or g[2] and 2 or 0 end
     -- Unstable (v5: their own list entries, at the top): a SEPARATE dungeon set ('Unstable Space - …', PlayType 8,
     -- NormalHeroDungeonTable), not a difficulty. Listed = ONLY the ones open today: the server's daily set
     -- (dungeon_data:GetDungeonList(), refreshed by DhRefreshUnstableChunk on every hub open, dungeon_vm.lua:210-223)
@@ -38,12 +43,12 @@ public sealed partial class Plugin
         if not gid then
           local best = 0
           for _, og in ipairs(order) do
-            local g1 = groups[og][1]
+            local g1 = base(groups[og])
             local gn = g1 and groups[og].cur and DT.GetRow(g1.DungeonId, true)
             if gn and #gn.Name > best and string.find(d.Name, gn.Name, 1, true) then gid = og best = #gn.Name end
           end
         end
-        local g1 = gid and groups[gid] and groups[gid][1]
+        local g1 = gid and groups[gid] and base(groups[gid])
         local gd = g1 and DT.GetRow(g1.DungeonId, true)
         local name = (gd and gd.Name and gd.Name ~= '') and gd.Name or d.Name
         -- the Unstable page (hero_dungeon_instability_main_view.lua): solo = SingleAiMode 1 + the solo row's
@@ -78,7 +83,7 @@ public sealed partial class Plugin
     -- which hero groups to list, in tiers (the CN client, season 4, listed NONE with tier 1 alone):
     --   1) groups with a DungeonsTable row whose .Season holds the current season (g.cur) — always hits on SEA S3;
     --   2) none: the NEWEST season any group's rows carry in .Season (max over every row), groups tagged with it;
-    --   3) still none (no season data at all): groups whose Normal row exists and whose FunctionID is on.
+    --   3) still none (no season data at all): groups whose base row exists and whose FunctionID is on.
     -- Tiers 2 / 3 only run when tier 1 finds nothing, so the SEA poll costs the same as before.
     local show, tier, any = {}, 1, false
     for _, gid in ipairs(order) do if groups[gid].cur then show[gid] = true any = true end end
@@ -102,7 +107,7 @@ public sealed partial class Plugin
       else
         tier = 3
         for _, gid in ipairs(order) do
-          local g1 = groups[gid][1]
+          local g1 = base(groups[gid])
           local d = g1 and DT.GetRow(g1.DungeonId, true)
           if d and funcOn(d.FunctionID) then show[gid] = true end
         end
@@ -123,7 +128,8 @@ public sealed partial class Plugin
             local stars = {}
             for k in pairs(g) do if type(k) == 'number' then stars[#stars + 1] = k end end
             table.sort(stars)
-            local id1 = g[1] and g[1].DungeonId or 0
+            local g1 = base(g)
+            local id1 = g1 and g1.DungeonId or 0
             local d = id1 ~= 0 and DT.GetRow(id1, true) or nil
             local sv, si, fn = 'nil', '-', '-'
             if d then
@@ -137,7 +143,7 @@ public sealed partial class Plugin
               fn = tostring(funcOn(d.FunctionID))
             end
             local unl = try(function() return tostring(hvm.IsUnlockDungeonId(id1)) end, '?')
-            return 'g' .. tostring(gid) .. '[' .. table.concat(stars, ',') .. '] id=' .. tostring(id1) .. ' dt=' .. (d and 'y' or 'n') ..
+            return 'g' .. tostring(gid) .. '[' .. table.concat(stars, ',') .. '] base=' .. bstar(g) .. ' id=' .. tostring(id1) .. ' dt=' .. (d and 'y' or 'n') ..
               ' Season=' .. sv .. ' SeasonId=' .. si .. ' fn=' .. fn .. ' unl=' .. unl .. ' show=' .. (show[gid] and 1 or 0)
           end)
           p[#p + 1] = okG and line or ('g' .. tostring(gid) .. ' ERR ' .. tostring(line))
@@ -147,7 +153,7 @@ public sealed partial class Plugin
     end
     for _, gid in ipairs(order) do
       local g = groups[gid]
-      local n = g[1]
+      local n = base(g)
       local nd = n and DT.GetRow(n.DungeonId, true)
       if show[gid] and nd then
         local key = 'g' .. gid

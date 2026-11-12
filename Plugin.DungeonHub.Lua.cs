@@ -212,11 +212,13 @@ end)";
     // StarLevel table into hero_dungeon_main_data, FunctionId = Challenge, GoToFunc(DungeonsTable.FunctionID) — then
     // leave a pend for the poll: level 1/2/3 (the page's own tab key), Master diff (its `select`, read by
     // initMasterDiffLoop), and Solo (its digit toggle). A page that is already up is closed first (it reads the
-    // group only on open).
+    // group only on open). The FunctionID comes from the group's lowest level present (Normal, else Hard, else Master):
+    // Season 4 groups have no Normal (StarLevel 1) row.
     private static string DhOpenHeroChunk(int group, int level, int diff, bool solo) => DhOpenWrap(
         " local grp = Z.VMMgr.GetVM('dungeon').GetHeroDungeonGroup(" + Q(group) + ")" +
-        " if not grp or table.zcount(grp) == 0 or not grp[1] then error('no such dungeon group') end" +
-        " local row = Z.TableMgr.GetTable('DungeonsTableMgr').GetRow(grp[1].DungeonId)" +
+        " local g0 = grp and (grp[1] or grp[2] or grp[3])" +
+        " if not g0 then error('no such dungeon group') end" +
+        " local row = Z.TableMgr.GetTable('DungeonsTableMgr').GetRow(g0.DungeonId)" +
         " local on, reason = Z.VMMgr.GetVM('switch').CheckFuncSwitch(row.FunctionID)" +
         " if not on then if reason and reason[1] then Z.TipsVM.OpenViewById(reason[1].error, reason[1].params) end error('function locked') end" +
         " local hd = Z.DataMgr.Get('hero_dungeon_main_data')" +
