@@ -144,16 +144,20 @@ public sealed partial class Plugin
               ShouldRender = () => on() && _services.ClientState.Phase == GamePhase.World &&
                                    (_services.ClientState.UiState & GameUIState.Loading) == 0,
               // fw 2.30.0 pre-build (raid first open was 418 ms): filled off-screen with _dc == null — every lambda here is null-safe.
-              Prebuild = true },
+              Prebuild = true,
+              // fw 2.30.0 "always on top": the window replaces a full-screen game prompt, so it must draw above every
+              // other Stellar window — the hub, its settings, other plugins' tools — even ones opened/fronted while it's up.
+              // (Under the 2.30 non-sticky stacking model BringToFront alone no longer guarantees that.)
+              Topmost = true },
             Root: root,
             OnClose: DcClose));
         _windows.Add(w);
         return w;
     }
 
-    // Show the layout for this request, in front, centred on the screen. BringToFront on every open: this window must
-    // beat everything (it replaces a full-screen game prompt), and ZFront is sticky (WindowBuilder-Patterns.md) — that's
-    // harmless here because the window is only ever up for a confirm. The hub (and its settings child) front on every open too.
+    // Show the layout for this request, in front, centred on the screen. Topmost (DcRegister) keeps it above every
+    // non-topmost window; BringToFront only orders it among OTHER topmost windows (e.g. another plugin's pinned alert),
+    // so a new request still lands on top of those — kept for that, it is not needed against normal windows any more.
     private void DcShow()
     {
         bool raid = _dc?.Twenty ?? false;
