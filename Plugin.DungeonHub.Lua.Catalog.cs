@@ -18,6 +18,10 @@ public sealed partial class Plugin
       if inSeason(DT.GetRow(r.DungeonId, true)) then g.cur = true end
     end
     table.sort(order)
+    -- a group's BASE row = its lowest star level present: Normal (1), else Hard (2). Season 4 (CN) groups have ONLY
+    -- Hard + Master (StarLevel 2 / 3, no Normal), so anchoring on g[1] dropped every one of them from the list.
+    -- The name, thumb fallback, lock state, cap and FunctionID come from it.
+    local function base(g) return g[1] or g[2] end
     -- Unstable (v5: their own list entries, at the top): a SEPARATE dungeon set ('Unstable Space - …', PlayType 8,
     -- NormalHeroDungeonTable), not a difficulty. Listed = ONLY the ones open today: the server's daily set
     -- (dungeon_data:GetDungeonList(), refreshed by DhRefreshUnstableChunk on every hub open, dungeon_vm.lua:210-223)
@@ -38,12 +42,12 @@ public sealed partial class Plugin
         if not gid then
           local best = 0
           for _, og in ipairs(order) do
-            local g1 = groups[og][1]
+            local g1 = base(groups[og])
             local gn = g1 and groups[og].cur and DT.GetRow(g1.DungeonId, true)
             if gn and #gn.Name > best and string.find(d.Name, gn.Name, 1, true) then gid = og best = #gn.Name end
           end
         end
-        local g1 = gid and groups[gid] and groups[gid][1]
+        local g1 = gid and groups[gid] and base(groups[gid])
         local gd = g1 and DT.GetRow(g1.DungeonId, true)
         local name = (gd and gd.Name and gd.Name ~= '') and gd.Name or d.Name
         -- the Unstable page (hero_dungeon_instability_main_view.lua): solo = SingleAiMode 1 + the solo row's
@@ -75,11 +79,42 @@ public sealed partial class Plugin
       if try(function() return #row.FirstPassAward > 0 end, false) then return 1 end
       return 0
     end
+    -- which hero groups to list, in tiers (the CN client, season 4, listed NONE with tier 1 alone):
+    --   1) groups with a DungeonsTable row whose .Season holds the current season (g.cur) — always hits on SEA S3;
+    --   2) none: the NEWEST season any group's rows carry in .Season (max over every row), groups tagged with it;
+    --   3) still none (no season data at all): groups whose base row exists and whose FunctionID is on.
+    -- Tiers 2 / 3 only run when tier 1 finds nothing, so the SEA poll costs the same as before.
+    local show, any = {}, false
+    for _, gid in ipairs(order) do if groups[gid].cur then show[gid] = true any = true end end
+    if not any then
+      local maxS, gs = nil, {}
+      for _, gid in ipairs(order) do
+        local set = {}
+        gs[gid] = set
+        for star, r in pairs(groups[gid]) do
+          if type(star) == 'number' then pcall(function()
+            for _, v in pairs(DT.GetRow(r.DungeonId, true).Season) do
+              local s = tonumber(v)
+              if s then set[s] = true if not maxS or s > maxS then maxS = s end end
+            end
+          end) end
+        end
+      end
+      if maxS then
+        for _, gid in ipairs(order) do if gs[gid][maxS] then show[gid] = true end end
+      else
+        for _, gid in ipairs(order) do
+          local g1 = base(groups[gid])
+          local d = g1 and DT.GetRow(g1.DungeonId, true)
+          if d and funcOn(d.FunctionID) then show[gid] = true end
+        end
+      end
+    end
     for _, gid in ipairs(order) do
       local g = groups[gid]
-      local n = g[1]
+      local n = base(g)
       local nd = n and DT.GetRow(n.DungeonId, true)
-      if g.cur and nd then
+      if show[gid] and nd then
         local key = 'g' .. gid
         local mid = g[3] and g[3].DungeonId or 0
         local nOn = funcOn(nd.FunctionID) and try(function() return hvm.IsUnlockDungeonId(n.DungeonId) and true or false end, false)

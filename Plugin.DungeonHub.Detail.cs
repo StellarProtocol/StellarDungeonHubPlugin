@@ -61,7 +61,8 @@ public sealed partial class Plugin
     // ── dungeon / raid panel ──────────────────────────────────────────────────────────────────────────────────────
     // Under the chips sits ONE fixed-height block (DhMidBlock), so the buttons stay anchored at the bottom.
     // Hero chips: an Unstable entry (v5) shows one selected light-blue "Unstable" chip; a regular dungeon Normal · Hard
-    // (· Master). Raid: Easy · Hard · Nightmare where the group has them.
+    // (· Master), each level chip only when the group has it (Season 4 groups have no Normal: Hard · Master).
+    // Raid: Easy · Hard · Nightmare where the group has them.
     private HudElement DhDetailPanel() => DhPanelNoCaption(
         DhArtBand(),
         DhNameRow(),
@@ -75,7 +76,7 @@ public sealed partial class Plugin
                 new RowElement(new HudElement[] { DhDiffChip(DhUnstableIdx, DhChipWideW) }, Gap: DhPanGap),
                 new RowElement(new HudElement[]
                 {
-                    DhDiffChip(1, DhChipW), DhDiffChip(2, DhChipW),
+                    DhChipIf(1, DhChipW), DhChipIf(2, DhChipW),
                     new ConditionalElement(() => DhCur is { MasterCount: > 0 }, DhDiffChip(DhMasterIdx, DhChipWideW)),
                 }, Gap: DhPanGap))),
         DhMidBlock(),
@@ -199,7 +200,7 @@ public sealed partial class Plugin
         return DhIsMaster && _dhMasterDiff >= 1 && _dhMasterDiff <= DhLvCount ? DhMasterLabel(_dhMasterDiff) : L("dh.diff.master");
     }
 
-    // Raid chips exist only where the group has that difficulty.
+    // Raid and hero Normal / Hard chips exist only where the group has that difficulty.
     private HudElement DhChipIf(int idx, float w) => new ConditionalElement(() => DhCur?.Levels[idx] != null, DhDiffChip(idx, w));
 
     private HudElement DhDiffChip(int idx, float w)

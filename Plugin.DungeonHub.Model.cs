@@ -205,7 +205,8 @@ public sealed partial class Plugin
 
     private DhEntry? DhAt(int i) => i < DhList.Count ? DhList[i] : null;
 
-    // A new entry starts on Normal (hero) or its first difficulty (raid: a Backtrack group has only one), and its
+    // A new entry starts on Normal (hero; Hard on a Season 4 group, which has no Normal) or its first difficulty
+    // (raid: a Backtrack group has only one), and its
     // Master grid on the game's own default level (hero_dungeon_main_view initMasterDiffLoop: highest cleared + 1,
     // capped at the list).
     private static int DhDefaultIdx(DhEntry e)
@@ -276,7 +277,8 @@ public sealed partial class Plugin
                 int n = Math.Clamp(e.MasterMax + 1, 1, Math.Min(e.MasterCount, DhLvCount));
                 return e.HighSub = e.MasterMax >= e.MasterCount ? LF("dh.master.allCleared", DhMasterLabel(n)) : DhMasterLabel(n);
             }
-            return e.HighSub = L(e.Levels[2] is { Unlocked: true } ? "dh.diff.hard" : "dh.diff.normal");
+            // a group without Normal (Season 4) never reads "Normal": its lowest level is Hard
+            return e.HighSub = L(e.Levels[2] is { Unlocked: true } || e.Levels[1] == null ? "dh.diff.hard" : "dh.diff.normal");
         }
         if (e.Tab == DhTabRaid && (e.HighSub ??= DhRaidRowSub(e) ?? "").Length > 0) return e.HighSub;
         var l = e.Levels[Math.Clamp(DhPickOf(e).Idx, 0, DhChipCount - 1)];

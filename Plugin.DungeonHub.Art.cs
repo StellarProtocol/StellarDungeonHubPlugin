@@ -7,7 +7,7 @@ namespace Stellar.DungeonHub;
 
 // Dungeons hub — list thumbnails and the detail art band, from Dungeon Confirm's sources and helpers:
 //   • hero dungeons: ChallengeHeroDungeonTable.Background of the shown difficulty (list thumb = the Master row's when the
-//     group has one, else the Normal row's — v5); Unstable entries: NormalHeroDungeonTable.Background;
+//     group has one, else its lowest level's: Normal, or Hard on a Season 4 group — v5); Unstable entries: NormalHeroDungeonTable.Background;
 //   • raids: RaidDungeonTable.MonsterShowTexture (a TRANSPARENT boss cut-out) composed over its DiffBgTexture —
 //     DcComposeRt (Plugin.DungeonConfirm.ArtCompose.cs), cached per (backdrop, cut-out) pair until the hub hides;
 //   • activities: the recommended-play BackGroundPic (SeasonActTable) or ActivityDungeonTable.Background; World Boss:

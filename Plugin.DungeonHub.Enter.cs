@@ -127,12 +127,14 @@ public sealed partial class Plugin
         " local hvm = Z.VMMgr.GetVM('hero_dungeon_main')" +
         " local grp = Z.VMMgr.GetVM('dungeon').GetHeroDungeonGroup(" + Q(group) + ")" +
         " local ent = grp and grp[LEVEL]" +
-        " if not ent or not grp[1] then res = 'PAGE no level ' .. LEVEL .. ' in group' return end" +
+        // g0 = the group's lowest level present (Normal, else Hard): Season 4 groups have no Normal (StarLevel 1) row
+        " local g0 = grp and (grp[1] or grp[2] or grp[3])" +
+        " if not ent or not g0 then res = 'PAGE no level ' .. LEVEL .. ' in group' return end" +
         " local id = ent.DungeonId" +
         " local row = DT.GetRow(id, true)" +
         " if not row then res = 'PAGE no DungeonsTable row ' .. tostring(id) return end" +
         // the page only exists behind GoToFunc(FunctionID) → CheckFuncCanUse (switch / scene / buff / dead, with tips)
-        " if not Z.VMMgr.GetVM('gotofunc').CheckFuncCanUse(DT.GetRow(grp[1].DungeonId).FunctionID, false) then res = 'NO not allowed here right now' return end" +
+        " if not Z.VMMgr.GetVM('gotofunc').CheckFuncCanUse(DT.GetRow(g0.DungeonId).FunctionID, false) then res = 'NO not allowed here right now' return end" +
         " local isMaster = LEVEL == 3 local mcfg" +
         " if isMaster then" +
         "   local mm = require('table.MasterChallenDungeonTableMap').DungeonId[id]" +
