@@ -20,9 +20,8 @@ public sealed partial class Plugin
     table.sort(order)
     -- a group's BASE row = its lowest star level present: Normal (1), else Hard (2). Season 4 (CN) groups have ONLY
     -- Hard + Master (StarLevel 2 / 3, no Normal), so anchoring on g[1] dropped every one of them from the list.
-    -- The name, thumb fallback, lock state, cap and FunctionID come from it. bstar = which level that is (diag).
+    -- The name, thumb fallback, lock state, cap and FunctionID come from it.
     local function base(g) return g[1] or g[2] end
-    local function bstar(g) return g[1] and 1 or g[2] and 2 or 0 end
     -- Unstable (v5: their own list entries, at the top): a SEPARATE dungeon set ('Unstable Space - …', PlayType 8,
     -- NormalHeroDungeonTable), not a difficulty. Listed = ONLY the ones open today: the server's daily set
     -- (dungeon_data:GetDungeonList(), refreshed by DhRefreshUnstableChunk on every hub open, dungeon_vm.lua:210-223)
@@ -85,10 +84,9 @@ public sealed partial class Plugin
     --   2) none: the NEWEST season any group's rows carry in .Season (max over every row), groups tagged with it;
     --   3) still none (no season data at all): groups whose base row exists and whose FunctionID is on.
     -- Tiers 2 / 3 only run when tier 1 finds nothing, so the SEA poll costs the same as before.
-    local show, tier, any = {}, 1, false
+    local show, any = {}, false
     for _, gid in ipairs(order) do if groups[gid].cur then show[gid] = true any = true end end
     if not any then
-      tier = 2
       local maxS, gs = nil, {}
       for _, gid in ipairs(order) do
         local set = {}
@@ -105,51 +103,12 @@ public sealed partial class Plugin
       if maxS then
         for _, gid in ipairs(order) do if gs[gid][maxS] then show[gid] = true end end
       else
-        tier = 3
         for _, gid in ipairs(order) do
           local g1 = base(groups[gid])
           local d = g1 and DT.GetRow(g1.DungeonId, true)
           if d and funcOn(d.FunctionID) then show[gid] = true end
         end
       end
-    end
-    -- one-shot season diagnostic (once per Lua state, flag __stellarDHDiagDone): C# logs __stellarDHDiag once as
-    -- [DungeonHub] season diag. Fully pcall'd — it can never break the catalog. Bounded to 40 groups.
-    if not rawget(_G, '__stellarDHDiagDone') then
-      rawset(_G, '__stellarDHDiagDone', true)
-      pcall(function()
-        local nrows = 0
-        pcall(function() for _ in pairs(TM.GetTable('ChallengeHeroDungeonTableMgr').GetDatas()) do nrows = nrows + 1 end end)
-        local p = { 'sid=' .. tostring(sid) .. ' ibs=' .. tostring(ibsSid) .. ' tier=' .. tier .. ' rows=' .. nrows .. ' groups=' .. #order }
-        for i, gid in ipairs(order) do
-          if i > 40 then p[#p + 1] = '...' break end
-          local okG, line = pcall(function()
-            local g = groups[gid]
-            local stars = {}
-            for k in pairs(g) do if type(k) == 'number' then stars[#stars + 1] = k end end
-            table.sort(stars)
-            local g1 = base(g)
-            local id1 = g1 and g1.DungeonId or 0
-            local d = id1 ~= 0 and DT.GetRow(id1, true) or nil
-            local sv, si, fn = 'nil', '-', '-'
-            if d then
-              local s = d.Season
-              if s ~= nil then
-                local l = {}
-                pcall(function() for _, v in pairs(s) do l[#l + 1] = tostring(v) end end)
-                sv = type(s) .. ':' .. table.concat(l, ',')
-              end
-              si = try(function() return tostring(d.SeasonId) end, '?')
-              fn = tostring(funcOn(d.FunctionID))
-            end
-            local unl = try(function() return tostring(hvm.IsUnlockDungeonId(id1)) end, '?')
-            return 'g' .. tostring(gid) .. '[' .. table.concat(stars, ',') .. '] base=' .. bstar(g) .. ' id=' .. tostring(id1) .. ' dt=' .. (d and 'y' or 'n') ..
-              ' Season=' .. sv .. ' SeasonId=' .. si .. ' fn=' .. fn .. ' unl=' .. unl .. ' show=' .. (show[gid] and 1 or 0)
-          end)
-          p[#p + 1] = okG and line or ('g' .. tostring(gid) .. ' ERR ' .. tostring(line))
-        end
-        rawset(_G, '__stellarDHDiag', table.concat(p, ' | '))
-      end)
     end
     for _, gid in ipairs(order) do
       local g = groups[gid]
