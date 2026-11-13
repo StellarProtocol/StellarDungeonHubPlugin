@@ -215,7 +215,8 @@ public sealed partial class Plugin
     // Gear: the hub header's settings button (icon-only, beside the ✕ — .DungeonHub.Window.cs DhSettingsButton).
     // Play: the settings' ▶ preview buttons (.DungeonConfirm.Settings.cs) — "▶" isn't trusted in the TMP faces either.
     // Chevron: the ▾ of the disabled sound-dropdown stand-in (.DungeonConfirm.Settings.cs DsDropdownOff), 8 wide × 5 tall ink.
-    private enum DcGlyph { Check, Cross, Gear, Play, Chevron }
+    // Stop: the ■ a playing ▶ preview turns into — a rounded square 16 of 24 (8 of 12 shown); "■" draws blank in bold TMP.
+    private enum DcGlyph { Check, Cross, Gear, Play, Chevron, Stop }
     private static readonly System.Collections.Generic.Dictionary<(DcGlyph, int, int), byte[]?> _dcGlyphs = new();
 
     private static byte[]? DcGlyphPng(DcGlyph g, float shown, ColorRgba c)
@@ -231,6 +232,8 @@ public sealed partial class Plugin
             DcGlyph.Gear  => DcGearInside,
             DcGlyph.Play  => (x, y) => x >= 7.5f && x <= 19.5f && MathF.Abs(y - 12f) <= (19.5f - x) * 0.6f,
             DcGlyph.Chevron => (x, y) => y >= 4.5f && y <= 19.5f && MathF.Abs(x - 12f) <= (19.5f - y) * 0.8f,
+            DcGlyph.Stop  => (x, y) => DcSeg(x, y, 6.5f, 6.5f, 17.5f, 6.5f, 2.5f) || DcSeg(x, y, 6.5f, 17.5f, 17.5f, 17.5f, 2.5f) ||
+                                       (x >= 4f && x <= 20f && y >= 6.5f && y <= 17.5f) || (x >= 6.5f && x <= 17.5f && y >= 4f && y <= 20f),
             _             => (x, y) => DcSeg(x, y, 6f, 6f, 18f, 18f, 2.3f) || DcSeg(x, y, 18f, 6f, 6f, 18f, 2.3f),
         };
         return _dcGlyphs[key] = DcRaster(2 * (int)shown, 24f, r, gr, b, inside);

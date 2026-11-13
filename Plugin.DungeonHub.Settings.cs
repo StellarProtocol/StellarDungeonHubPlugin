@@ -27,6 +27,7 @@ public sealed partial class Plugin
     {
         _dcSettingsCentre?.Stop();
         _dcSettingsWindow.SetVisible(false);
+        DcSoundStopPreview();   // a ▶ preview doesn't outlive its window (.DungeonConfirm.Sound.cs)
         FlushOpacity();   // a debounced opacity slider value is saved on close (.WindowOpacity.cs)
     }
 
