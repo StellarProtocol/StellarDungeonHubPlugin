@@ -18,7 +18,8 @@ namespace Stellar.DungeonHub;
 // voice per process: a long custom open sound swallowed every tick.)
 //
 // The open sound plays until the window closes or I answer (Confirm / Decline / an end state) — a long custom file is
-// cut then (DcSoundStopAll). Ticks play on top of it.
+// cut then (DcSoundStopAll). Ticks play on top of it. The settings ▶ preview (tag dc_test) is a play/stop toggle and
+// stops on settings close, on a file change for its row, and with Replace OFF (DcSoundPreview).
 //
 // Volume: the decoded PCM is kept; the mixer clip is rebuilt with the volume baked in and converted to the mixer format
 // (DcMixer.Convert) the first time a sound is needed after the volume / file changed — one clip per slot (open, tick),
@@ -107,12 +108,13 @@ public sealed partial class Plugin
     }
 
     // Plays the open (tick = false) or tick sound under `tag`. Ready image → now; otherwise decode / bake on a short
-    // background thread and start it there, unless a Stop for the tag came first.
-    private void DcPlay(bool tick, string tag)
+    // background thread and start it there, unless a Stop for the tag came first. Returns true when it went to that
+    // thread (the preview's "loading" state, DcSoundPreview); a test-tag load clears _dcTestPendingGen when it ends.
+    private bool DcPlay(bool tick, string tag)
     {
         var wav = DcWavFor(tick, mayDecode: false);
-        if (wav == null) return;
-        if (wav != DcPending) { DcStart(tag, wav); return; }
+        if (wav == null) return false;
+        if (wav != DcPending) { DcStart(tag, wav); return false; }
         int gen = DcGen(tag);
         new Thread(() =>
         {
@@ -122,7 +124,11 @@ public sealed partial class Plugin
                 if (w != null && w != DcPending && gen == DcGen(tag) && !_dcSoundDisposed) DcStart(tag, w);
             }
             catch (Exception ex) { DcSoundLog("play failed: " + ex.Message); }
+            // Started (the mixer now reports it busy) or gave up: no longer loading. Only THIS load's mark is cleared,
+            // so a finished stale load can't flip a newer click's ■ back to ▶.
+            finally { if (tag == DcTagTest) Interlocked.CompareExchange(ref _dcTestPendingGen, -1, gen); }
         }) { IsBackground = true, Name = "DungeonHub.DcSoundLoad" }.Start();
+        return true;
     }
 
     private int DcGen(string tag) => tag == DcTagEnter ? _dcGenEnter : tag == DcTagTick ? _dcGenTick : _dcGenTest;
@@ -222,7 +228,30 @@ public sealed partial class Plugin
     }
 
     // ▶ next to a dropdown: that one sound, once, at the current volume (toggles ignored — it's an explicit preview).
-    private void DcSoundPreview(bool tick) { if (_dcReplace) DcPlay(tick, DcTagTest); }   // the button is inert when OFF too
+    // A play/stop toggle (user-approved "Option A", 2026-11-13): while that row's preview plays — including the async
+    // load before playback starts — its button shows ■ on the accent, and a click stops it. Both rows share the one
+    // DcTagTest voice, so ▶ on the OTHER row switches the preview to that sound (_dcTestTick records which row owns it).
+    // "Playing" = loading (_dcTestPendingGen is the current _dcGenTest) or the mixer still has the voice (IsBusyWith,
+    // lock-only). Any stop bumps _dcGenTest, which also ends "loading" — so DcSoundStopAll (Replace OFF, window hide,
+    // answer) resets the button with no extra state. It drops back to ▶ by itself when the sound ends.
+    private bool _dcTestTick;
+    private int _dcTestPendingGen = -1;
+
+    private bool DcPreviewPlaying(bool tick) =>
+        _dcTestTick == tick && (Volatile.Read(ref _dcTestPendingGen) == _dcGenTest || _dcAudio?.IsBusyWith(DcTagTest) == true);
+
+    private void DcSoundPreview(bool tick)
+    {
+        if (!_dcReplace) return;                       // the button is inert when OFF too
+        if (DcPreviewPlaying(tick)) { DcSoundStopPreview(); return; }
+        _dcGenTest++;                                  // the other row's pending load (if any) must not start after this one
+        _dcTestTick = tick;
+        Volatile.Write(ref _dcTestPendingGen, _dcGenTest);   // set BEFORE DcPlay, so its loader can't clear it first
+        if (!DcPlay(tick, DcTagTest)) Interlocked.CompareExchange(ref _dcTestPendingGen, -1, _dcGenTest);   // started now, or nothing to play
+    }
+
+    // Stops the settings preview only (open sound / ticks of a live request keep going). Settings close, file change, ■.
+    private void DcSoundStopPreview() { _dcGenTest++; _dcAudio?.Stop(DcTagTest); }
 
     // Dropdown options: "Default", every listed file, and the saved choice even when it is gone (so the caption still
     // names it while the yellow note explains). Rebuilt only when the list or the choice changed — the same instance
@@ -258,6 +287,7 @@ public sealed partial class Plugin
     {
         var opts = DcSoundOptions(tick);
         string name = index <= 0 || index >= opts.Count ? "" : opts[index];
+        if (_dcTestTick == tick) DcSoundStopPreview();   // that row's preview was the old file
         if (tick) { _dcTickFile = name; _cfg.Set<string>("dungeon_confirm_sound_tick_file", name); }
         else      { _dcOpenFile = name; _cfg.Set<string>("dungeon_confirm_sound_open_file", name); }
         _cfg.Save();

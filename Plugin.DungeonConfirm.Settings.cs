@@ -10,6 +10,7 @@ namespace Stellar.DungeonHub;
 //   ToolHeader   [accent tile + white gear] "Dungeon Hub Settings" / "Confirm screen On|Off" … [✕]
 //   CONFIRM SCREEN  replace row + chip · [Preview 5-player] [Preview raid]
 //   SOUNDS          open-sound row + chip · Pill dropdown + ▶ · tick row + chip · dropdown + ▶ · Volume slider ·
+//                   ▶ = play/stop toggle: ■ on the accent while that row's preview plays (DsPlayButton, .Sound.cs) ·
 //                   [Open sounds folder] + note. A chosen file that can't be played → yellow note under its dropdown.
 //                   Replace OFF → the whole section is inert + faded, with a "why" line under the caption (DsSoundsOn).
 //   WINDOW          custom window opacity row + chip · Opacity slider while on (.WindowOpacity.cs)
@@ -153,7 +154,7 @@ public sealed partial class Plugin
                 new DropdownElement(() => DcSoundSelected(tick), () => DcSoundOptions(tick), i => DcSoundPick(tick, i),
                     Width: DsDropW) { Style = DropdownStyle.Pill, CornerRadius = DsDropRadius, MaxVisibleRows = 8 },
                 DsDropdownOff(tick)), Width: DsDropW),
-            DsPlayButton(() => DcSoundPreview(tick), DsSoundsOn),
+            DsPlayButton(() => DcSoundPreview(tick), DsSoundsOn, () => DcPreviewPlaying(tick)),
         }, Gap: DsGap),
         new ConditionalElement(() => DcSoundProblem(tick).Length > 0,
             new CellElement(new TextElement(() => LF("dc.set.cantPlay", DcSoundProblem(tick)),
@@ -246,22 +247,28 @@ public sealed partial class Plugin
     // Round neutral ▶ (generated PNG, DcGlyph.Play), 28×28 = the Pill dropdown beside it, hover = 10 % text wash. The
     // glyph keeps the mock's 12-in-28 proportion, so it is unscaled too. Disabled: click + hover gated, faded fill, and
     // the glyph swapped (Conditional, same 12×12) for a disabled-ink copy — an ImageElement's PNG is baked once at build.
-    private HudElement DsPlayButton(Action onClick, Func<bool> enabled)
+    // Playing (that row's preview, incl. its async load — DcPreviewPlaying, user-approved "Option A" 2026-11-13): the
+    // same shell on the Primary accent with a white ■ (DcGlyph.Stop, 3.0 Primary contrast rule), hover = 10 % white;
+    // click stops it. Only fill + glyph change, so nothing moves between the states.
+    private HudElement DsPlayButton(Action onClick, Func<bool> enabled, Func<bool> playing)
     {
         var hover = new DcHover();
         float glyph = 12f, side = (DsPlayW - glyph) / 2f;
-        Func<ColorRgba> fill = () => enabled() ? DcNeutral() : DsOffFill(DcNeutral());
+        Func<ColorRgba> fill = () => !enabled() ? DsOffFill(DcNeutral()) : playing() ? Menu.MenuAccent : DcNeutral();
         return new CellElement(new BubbleElement(new SelectableElement(new RowElement(new HudElement[]
             {
                 new SpacerElement(side, DsPlayW),
                 new ConditionalElement(enabled,
-                    new ImageElement(() => DcGlyphPng(DcGlyph.Play, glyph, EnsureContrast(TextColor(), DcNeutral(), 4.5f)), (int)glyph, (int)glyph),
+                    new ConditionalElement(playing,
+                        new ImageElement(() => DcGlyphPng(DcGlyph.Stop, glyph, EnsureContrast(White, Menu.MenuAccent, 3.0f)), (int)glyph, (int)glyph),
+                        new ImageElement(() => DcGlyphPng(DcGlyph.Play, glyph, EnsureContrast(TextColor(), DcNeutral(), 4.5f)), (int)glyph, (int)glyph)),
                     new ImageElement(() => DcGlyphPng(DcGlyph.Play, glyph, DsOffInk()), (int)glyph, (int)glyph)),
                 new SpacerElement(side, DsPlayW),
             }, Gap: 0.01f, Justify: RowJustify.Center), OnClick: () => { if (enabled()) onClick(); })
             { Bare = true, OnHover = o => hover.On = o })
             {
-                FillColorFn = () => Fade(hover.On && enabled() ? Over(Menu.MenuText with { A = 0.10f }, fill()) : fill()),
+                FillColorFn = () => Fade(!hover.On || !enabled() ? fill()
+                    : Over((playing() ? White : Menu.MenuText) with { A = 0.10f }, fill())),
                 CornerRadius = DsPlayW / 2f - 1f, PaddingX = 0f, PaddingY = 0f, MaxWidth = DsPlayW,
             }, Width: DsPlayW);
     }
