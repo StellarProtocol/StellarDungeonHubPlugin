@@ -74,6 +74,7 @@ public sealed partial class Plugin
         _dhRailButton?.Remove();   // the handle isn't IDisposable — Remove() pulls it and stops re-injection
         DhStopCentring();
         DhReleaseArt();
+        DhDisposeNpcArt();   // the NPC gradient tiles + dim texture (.NpcCompose.cs)
         _services.ClientState.Logout -= OnDhLogout;
     }
 

@@ -60,7 +60,7 @@ public sealed partial class Plugin
         public bool IsActivity => Tab > DhTabRaid && Tab <= DhTabOther;   // Boss & Hunt + Other, never the NPC tab
         public bool IsNpc => Tab == DhTabNpc;
         public List<DhService>? Services;   // NPC tab only: its services in the NPC's order (S records, .Npc.cs)
-        public string NpcBanner = "", NpcBannerFb = "", NpcThumb = "";   // NPC tab only: art paths (N record, .NpcArt.cs)
+        public string NpcBanner = "", NpcBannerFb = "", NpcThumb = "", NpcBackdrop = "";   // NPC tab only: art paths (N record, .NpcArt.cs)
     }
 
     private sealed class DhLiveState
@@ -169,7 +169,7 @@ public sealed partial class Plugin
                 case "C" when f.Length >= 8: DhParseCm(f); break;    // Bureau Commissions quest / events (.Commissions.cs)
                 case "S" when f.Length >= 6 && byKey.TryGetValue(f[1], out var npc): DhParseSvc(npc, f); break;   // NPC service (.Npc.cs)
                 case "N" when f.Length >= 5 && byKey.TryGetValue(f[1], out var nArt):   // NPC art paths (.NpcArt.cs)
-                    nArt.NpcBanner = f[2]; nArt.NpcBannerFb = f[3]; nArt.NpcThumb = f[4]; break;
+                    nArt.NpcBanner = f[2]; nArt.NpcBannerFb = f[3]; nArt.NpcThumb = f[4]; nArt.NpcBackdrop = f.Length > 5 ? f[5] : ""; break;
             }
         }
         if (full)
