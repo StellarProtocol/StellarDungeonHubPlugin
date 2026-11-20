@@ -136,6 +136,7 @@
   "dh.npc.notHere": "{0} can't be used right now",
   "dh.npc.sub": "{0} · {1} services",
   "dh.npc.sub1": "{0} · 1 service",
+  "dh.npc.title.1008600": "Factor Matrix & Exchange",
   "dh.party.leader": "Party {0}/{1} · you are leader",
   "dh.party.member": "Party {0}/{1} · member",
   "dh.party.none": "Not in a party",

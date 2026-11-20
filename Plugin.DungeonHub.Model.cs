@@ -112,6 +112,7 @@ public sealed partial class Plugin
                     if (f.Length > 20) e.Unstable = f[20] == "1";
                     if (f.Length > 21) e.Title = f[21];
                     if (f.Length > 22) e.MasterOn = f[22] == "1";
+                    if (e.IsNpc) e.Sub = DhNpcTitle(e.Key, e.Sub);   // our own subtitle replaces the game title (.Npc.cs)
                     if (e.Cap > 0) e.CapText = LF("dh.capText", e.Cap);
                     (e.SubText, e.TileVal) = DhCounterText(e.CounterVal, e.CounterZero);
                     lists[tab].Add(e);
