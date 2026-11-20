@@ -81,8 +81,8 @@ public sealed partial class Plugin
       end
       -- NPCS = the listed service NPCs, in list order: ONE row per NPC, so listing another is a one-line change.
       --   [1] NpcTable id · e = banner emblem (a path, or a function returning one) · f = its fallback (e did not load)
-      --   bg  = the banner's scenery backdrop (.NpcArt.cs; NPC IMAGE RULE, Dungeon-Access-Hub.md §13): a path, or a CHAIN
-      --         (list) tried in order, the first that loads wins. Default AST: every NPC below Mael stands in
+      --   bg  = the banner's scenery backdrop (.NpcArt.cs; NPC IMAGE RULE, Dungeon-Access-Hub.md §13): one path, with AST
+      --         appended as its fallback — a CHAIN tried in order, the first that loads wins. No bg = AST alone: every NPC below Mael stands in
       --         Asterleeds (scene 8), which has NO scenic-spot photo → Asterleeds-themed event art. ⚠️ NOT the town's
       --         environment picture ui/textures/env_textures/main_bg_4 (Global.lua:520): it does not ship (user log of
       --         70d0525: FAILED for every NPC). The chain is sent as one '|'-joined string, so C# resolves it ONCE for
@@ -120,6 +120,9 @@ public sealed partial class Plugin
         { 21707006, e = CP .. '10', f = LP .. 'woodwork',   pre = { 501008 } },     -- Cicero, Artisanry
         { 1008805,  e = CP .. '3',  f = LP .. 'cook',       pre = { 501004 } },     -- Halva, Culinary
         { 21707007, e = CP .. '9',  f = LP .. 'tailor',     pre = { 501009 } },     -- Maina, Weaving
+        -- Guild Center (scene 12000, no scenic photo): the guild building's own art; services locked without a guild
+        { 1200004,  e = 'ui/atlas/map/union_talk_06', f = TAB .. '83',
+          bg = 'ui/textures/union_2/union_device03' },                              -- Kien, Grocery Store (type '21')
       }
       local npcs = st.npcs
       if not npcs then
@@ -154,9 +157,17 @@ public sealed partial class Plugin
             local ir = IT.GetRow(tonumber(t[2]) or 0, true)
             -- ActionStage = a list of STAGES, each a list of actions {type, param} (live 2026-11-20: 2605 =
             -- {{{'4','800527'}}}); ['4', fid] = EInteractionActionFunctionEntry, the first one is the button's page
+            -- ['21', buildId, fid, …] = EInteractionActionUnionBuildFunc (guild NPCs, Kien): buildId 5 = E.UnionBuildId.Mall
+            -- is just unlock check + GoToFunc(fid, uuid) (interaction_action.lua:307-312 → union_vm.lua:2129-2168; uuid only
+            -- feeds the exchange dialog camera) → the same remote open as type 4. Other buildIds, and type '20' UnionBuild
+            -- (the building UPGRADE window, needs the guild scene's building entity), are skipped.
             local fid
             if ir then for _, stage in ipairs(ir.ActionStage or {}) do
-              for _, s in ipairs(stage) do if tostring(s[1]) == '4' then fid = tonumber(s[2]) break end end
+              for _, s in ipairs(stage) do
+                local ty = tostring(s[1])
+                if ty == '4' then fid = tonumber(s[2]) break end
+                if ty == '21' and tonumber(s[2]) == 5 then fid = tonumber(s[3]) break end
+              end
               if fid then break end
             end end
             if fid then
@@ -183,8 +194,10 @@ public sealed partial class Plugin
               if thumb == '' then thumb = tostring(try(function() return fr.Icon end, '')) end
             end
           end
-          local bg = row.bg or AST
-          if type(bg) == 'table' then bg = table.concat(bg, '|') end
+          -- an own backdrop falls back to the shared Asterleeds chain if it does not load (own → AST, one chain string)
+          local bg = AST
+          if row.bg then bg = { row.bg } for _, p in ipairs(AST) do bg[#bg + 1] = p end end
+          bg = table.concat(bg, '|')
           npcs[#npcs + 1] = { nid, n.Name, n.Title or '', svc, banner, row.f or '', thumb, bg }
         end) end
         -- tables not loaded yet → nothing cached, the next full poll reads them again
