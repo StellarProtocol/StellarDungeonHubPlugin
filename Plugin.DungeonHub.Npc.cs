@@ -52,11 +52,16 @@ public sealed partial class Plugin
     // whose initialisers may not have run yet when this file's do (partial-file static order is unspecified).
     private static float DhSvcBlockH => DhColsH - 2f * DhPanPadY - DhArtH - DhNameH - DhActSubH - DhCapH - 4f * DhPanGap;   // 436 ≥ 7 × 54 + 6 × 6
 
-    // Life-skill crafting function → its LifeProfessionTable ProId (rows 201-206: FunctionId 501004-501009). GoToFunc of
-    // these is unverified (their FunctionOrder is empty in the extracted tables), so the open uses the profession's own
-    // opener, life_profession.OpenLifeProfessionMainView(proId) (life_profession_vm.lua:557 — the life_profession_main
-    // view on that profession; QuickJumpLifeprofession :499 opens it the same way), after the full CheckFuncCanUse.
-    private const string DhLifeCraftPro = "{ [501004] = 201, [501005] = 202, [501006] = 203, [501007] = 204, [501008] = 205, [501009] = 206 }";
+    // Life-skill crafting function → { LifeProfessionTable ProId, workbench camera id } (FunctionId 501004-501009 →
+    // ProId 201-206). GoToFunc of these is unverified (their FunctionOrder is empty in the extracted tables), and
+    // life_profession.OpenLifeProfessionMainView(proId) is WRONG — it lands on the general Life Skill page (user-tested
+    // 2026-11-21). The crafting screen is what the WORKBENCH opens: InteractiveTable action 28 EInteractionActionCookFunc
+    // → interaction_action.lua CookFunc (:170), dispatched in DhNpcOpenChunk. Camera = the bench's InteractiveTable param
+    // (rows 2005/2050-2054). NOT nil: no view skips the camera on nil — each falls back to its DefaultCameraId
+    // (cast_main_view :54-55 → 4000 = the CULINARY cam for every craft; cook_main_view :527/:595 → 4000, but getEntity
+    // :504 tests camID ~= 4000 so nil picks the wrong bench entity 105; chemistry_main_view :30-32 → 4100).
+    private const string DhLifeCraftPro = "{ [501004] = {201, 4000}, [501005] = {202, 4100}, [501006] = {203, 4110}," +
+                                          " [501007] = {204, 4120}, [501008] = {205, 4130}, [501009] = {206, 4140} }";
 
     private const string DhNpcCatalogLua = @"
     -- NPC tab (tab 4, .Npc.cs).
@@ -220,19 +225,25 @@ public sealed partial class Plugin
 
     // Open one service page. Parks __stellarDHOpen = 'OK' / 'OK fallback …' / 'NO locked|here|failed …' / 'ERR …'.
     // GoToFunc runs the full CheckFuncCanUse with the game's own tip; the silent pre-checks only tell C# WHY it failed.
-    // A life-skill craft (DhLifeCraftPro) runs that same CheckFuncCanUse (tip on refusal), then its profession's opener;
-    // its 'OK life …' result carries the live FunctionOrder so the log shows what GoToFunc would have done.
+    // A life-skill craft (DhLifeCraftPro) runs that same CheckFuncCanUse (tip on refusal), then the workbench's CookFunc
+    // dispatch verbatim (Cook → cook.OpenCookView(cam); Chemistry → chemistry.OpenChemistryMainView(cam, false); else
+    // life_profession.OpenCastMainView(pro, cam, false) — isHouseCast false, as the world benches pass param[3] ~= 1);
+    // its 'OK life …' result carries proId, camId and the live FunctionOrder so the log shows what GoToFunc would have done.
     private static string DhNpcOpenChunk(int funcId) => DhOpenWrap(
         " local fid = " + Q(funcId) +
         " local gv = Z.VMMgr.GetVM('gotofunc')" +
         " local on = gv.FuncIsOn(fid, true)" +
         " local can = on and gv.CheckFuncCanUse(fid, true)" +
-        " local pro = (" + DhLifeCraftPro + ")[fid]" +
-        " if pro then" +
+        " local lc = (" + DhLifeCraftPro + ")[fid]" +
+        " if lc then" +
+        "   local pro, cam = lc[1], lc[2]" +
         "   if not gv.CheckFuncCanUse(fid, false) then res = on and 'NO here' or 'NO locked' return end" +
-        "   Z.VMMgr.GetVM('life_profession').OpenLifeProfessionMainView(pro)" +
+        "   local LP = E.ELifeProfession or {}" +
+        "   if pro == (LP.Cook or 201) then Z.VMMgr.GetVM('cook').OpenCookView(cam)" +
+        "   elseif pro == (LP.Chemistry or 202) then Z.VMMgr.GetVM('chemistry').OpenChemistryMainView(cam, false)" +
+        "   else Z.VMMgr.GetVM('life_profession').OpenCastMainView(pro, cam, false) end" +
         "   local fo = '' pcall(function() for _, v in ipairs(Z.TableMgr.GetTable('FunctionTableMgr').GetRow(fid).FunctionOrder) do fo = fo .. tostring(v) .. ' ' end end)" +
-        "   res = 'OK life profession ' .. pro .. ' (FunctionOrder ' .. fo .. ')' return" +
+        "   res = 'OK life profession ' .. pro .. ' cam ' .. cam .. ' (FunctionOrder ' .. fo .. ')' return" +
         " end" +
         " local went = gv.GoToFunc(fid)" +
         " if went then res = 'OK' return end" +
