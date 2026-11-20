@@ -49,7 +49,11 @@ public sealed partial class Plugin
                 DhPoll(warm: true);
                 if (!_dhHaveCatalog) return;   // poll failed / snapshot not in yet → retry next tick
                 for (int t = 0; t < DhTabCount; t++)
-                    foreach (var e in _dhLists[t]) { _services.Windows.PrewarmText(e.Name); _services.Windows.PrewarmText(e.SubText); }
+                    foreach (var e in _dhLists[t])
+                    {
+                        _services.Windows.PrewarmText(e.Name); _services.Windows.PrewarmText(e.SubText);
+                        if (e.Services != null) foreach (var s in e.Services) _services.Windows.PrewarmText(s.Name);   // NPC tab
+                    }
                 break;
             case 2:   // glyphs: the header ✕ (muted / hover red) and ⚙ (muted / hover accent), as Window.cs / Settings.cs bake them
             {

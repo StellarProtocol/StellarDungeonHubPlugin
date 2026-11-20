@@ -23,6 +23,7 @@ namespace Stellar.DungeonHub;
 //      (.GuildHunt.cs)
 //   C  Bureau Commissions: haveQuest, acceptLeft, total, cap, resetSec, resetHow, n, (id, name, area, done, dungeonId) × n
 //      (.Commissions.cs)
+//   S  NPC service (FULL poll, after its NPC's E on tab 4): key, slot, funcId, name, locked (.Npc.cs)
 // E/V come only with a FULL poll (catalog, every DhFullEvery polls or on demand); T and M come with every poll.
 public sealed partial class Plugin
 {
@@ -57,6 +58,8 @@ public sealed partial class Plugin
         public readonly DhLevel?[] Levels = new DhLevel?[DhChipCount];   // hero: Unstable, Normal, Hard (3 = Master, polled
                                                                           // as M rows); raid: Easy, Hard, Nightmare
         public bool IsActivity => Tab > DhTabRaid && Tab <= DhTabOther;   // Boss & Hunt + Other, never the NPC tab
+        public bool IsNpc => Tab == DhTabNpc;
+        public List<DhService>? Services;   // NPC tab only: its services in the NPC's order (S records, .Npc.cs)
     }
 
     private sealed class DhLiveState
@@ -161,6 +164,7 @@ public sealed partial class Plugin
                 case "W" when f.Length >= 10: DhParseWb(f); break;   // World Boss timer + this week's boss (.WorldBoss.cs)
                 case "G" when f.Length >= 16: DhParseGh(f); break;   // Guild Hunt guild / window / counters (.GuildHunt.cs)
                 case "C" when f.Length >= 8: DhParseCm(f); break;    // Bureau Commissions quest / events (.Commissions.cs)
+                case "S" when f.Length >= 6 && byKey.TryGetValue(f[1], out var npc): DhParseSvc(npc, f); break;   // NPC service (.Npc.cs)
             }
         }
         if (full)
@@ -257,7 +261,7 @@ public sealed partial class Plugin
         get
         {
             var e = DhCur;
-            if (e == null || e.IsActivity) return null;
+            if (e == null || e.IsActivity || e.IsNpc) return null;
             if (DhIsMaster) { foreach (var l in _dhMaster) if (l.Diff == _dhMasterDiff) return l; return null; }
             return e.Levels[Math.Clamp(_dhLevelIdx, 0, DhChipCount - 1)];
         }
@@ -270,6 +274,7 @@ public sealed partial class Plugin
     // a one-difficulty raid (Backtrack): "Rewards left" for its pick; an activity's own line.
     private string DhRowSub(DhEntry e)
     {
+        if (e.IsNpc) return e.SubText;   // "<Title> · N services" (.Npc.cs DhParseSvc)
         if (e.Locked) return L("dh.word.locked");
         if (e.IsActivity) return DhIsWb(e) ? DhWbRowSub(e) : DhIsGh(e) ? DhGhRowSub(e) : DhIsCm(e) ? DhCmRowSub(e) : e.SubText;
         if (e.Tab == DhTabHero && !e.Unstable)

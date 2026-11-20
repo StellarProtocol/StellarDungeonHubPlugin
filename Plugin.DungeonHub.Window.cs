@@ -127,9 +127,10 @@ public sealed partial class Plugin
         new RowElement(new HudElement[]
         {
             new CellElement(DhTopPinned(DhListPanel()), Width: DhListW),
-            new CellElement(DhTopPinned(new ConditionalElement(() => DhIsGh(DhCur), DhGhPanel(),   // Guild Hunt: the dungeon look
+            new CellElement(DhTopPinned(new ConditionalElement(() => DhCur is { IsNpc: true }, DhNpcPanel(),   // NPC services (.Npc.cs)
+                new ConditionalElement(() => DhIsGh(DhCur), DhGhPanel(),                          // Guild Hunt: the dungeon look
                 new ConditionalElement(() => DhIsCm(DhCur), DhCmPanel(),                         // Bureau Commissions (.Commissions.cs)
-                new ConditionalElement(() => DhCur is { IsActivity: true }, DhActivityPanel(), DhDetailPanel())))), Width: DhDetW),
+                new ConditionalElement(() => DhCur is { IsActivity: true }, DhActivityPanel(), DhDetailPanel()))))), Width: DhDetW),
         }, Gap: DhGap),
         new ConditionalElement(() => _dhLive.Matching, DhBarMatching(), DhBarIdle()),
     }, Gap: DhGap);
@@ -233,7 +234,8 @@ public sealed partial class Plugin
     {
         var slots = new HudElement[DhListSlots];
         for (int i = 0; i < DhListSlots; i++) slots[i] = DhListSlot(i);
-        return DhPanel(() => L(DhTab == DhTabHero ? "dh.cap.dungeon" : DhTab == DhTabRaid ? "dh.cap.raid" : "dh.cap.activity"),
+        return DhPanel(() => L(DhTab == DhTabHero ? "dh.cap.dungeon" : DhTab == DhTabRaid ? "dh.cap.raid"
+                : DhTab == DhTabNpc ? "dh.cap.npc" : "dh.cap.activity"),
             () => DhCur?.CapText ?? "",
             new ScrollElement(new ListElement(() => Math.Min(DhListSlots, DhList.Count), slots), DhScrollH) { FixedHeight = true });
     }
