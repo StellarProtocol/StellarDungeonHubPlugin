@@ -40,6 +40,15 @@ public sealed partial class Plugin
 
     private void InitDungeonHub()
     {
+        // One-time migration (2026-11-20 tab merge): old 2 World Boss / 3 Hunt → 2 Boss & Hunt, old 4 Other → 3 Other;
+        // the marker key keeps it from re-mapping a NEW index (3 Other / 4 NPC) on the next start.
+        if (!_cfg.Get<bool>("dungeon_hub_tab_v2", false))
+        {
+            int old = _cfg.Get<int>("dungeon_hub_tab", 0);
+            _cfg.Set<int>("dungeon_hub_tab", old switch { 3 => 2, 4 => 3, _ => old });
+            _cfg.Set<bool>("dungeon_hub_tab_v2", true);
+            _cfg.Save();
+        }
         _dhTab = Math.Clamp(_cfg.Get<int>("dungeon_hub_tab", 0), 0, DhTabCount - 1);
         DhBuildLiveText();       // the header / bar texts before the first poll ("Solo", "Not in a party")
         _dhWin = DhRegister();   // Plugin.DungeonHub.Window.cs

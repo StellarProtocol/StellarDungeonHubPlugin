@@ -26,11 +26,14 @@ namespace Stellar.DungeonHub;
 // E/V come only with a FULL poll (catalog, every DhFullEvery polls or on demand); T and M come with every poll.
 public sealed partial class Plugin
 {
-    private const int DhTabCount = 5, DhTabHero = 0, DhTabRaid = 1;
+    // Tabs (2026-11-20, user-approved dungeon-hub-npc-tab-APPROVED.html): Dungeons · Raid · Boss & Hunt (the old World
+    // Boss + Hunt tabs merged; DhTabWb = 2, .WorldBoss.cs) · Other · NPC. Tabs 2 and 3 hold activities (DhEntry.IsActivity);
+    // the NPC tab is its own kind (.Npc.cs) and never an activity. Saved tab index migrated once in InitDungeonHub.
+    private const int DhTabCount = 5, DhTabHero = 0, DhTabRaid = 1, DhTabOther = 3, DhTabNpc = 4;
     // Hero level slots: 1 Normal · 2 Hard · 3 Master (= the page's StarLevel); slot 0 is used only by an Unstable entry
     // (v5: Unstable is its own list entry with that one level, no longer a chip on the regular dungeon).
     private const int DhChipCount = 4, DhUnstableIdx = 0, DhMasterIdx = 3;
-    private static readonly string[] DhTabKeys = { "dh.tab.dungeons", "dh.tab.raid", "dh.tab.worldBoss", "dh.tab.hunt", "dh.tab.other" };
+    private static readonly string[] DhTabKeys = { "dh.tab.dungeons", "dh.tab.raid", "dh.tab.bossHunt", "dh.tab.other", "dh.tab.npc" };
 
     private sealed class DhLevel
     {
@@ -53,7 +56,7 @@ public sealed partial class Plugin
         public string? HighSub;                     // DhRowSub's cache (entries are rebuilt on every catalog parse)
         public readonly DhLevel?[] Levels = new DhLevel?[DhChipCount];   // hero: Unstable, Normal, Hard (3 = Master, polled
                                                                           // as M rows); raid: Easy, Hard, Nightmare
-        public bool IsActivity => Tab > DhTabRaid;
+        public bool IsActivity => Tab > DhTabRaid && Tab <= DhTabOther;   // Boss & Hunt + Other, never the NPC tab
     }
 
     private sealed class DhLiveState
@@ -166,7 +169,7 @@ public sealed partial class Plugin
             for (int i = 0; i < DhTabCount; i++) _dhLists[i].AddRange(lists[i]);
             if (!_dhHaveCatalog)
                 _services.Log.Info($"[DungeonHub] catalog: {_dhLists[0].Count} dungeons, {_dhLists[1].Count} raids, " +
-                    $"{_dhLists[2].Count + _dhLists[3].Count + _dhLists[4].Count} activities");
+                    $"{_dhLists[2].Count + _dhLists[3].Count} activities, {_dhLists[DhTabNpc].Count} NPCs");
             _dhHaveCatalog = true;
         }
         _dhMaster.Sort((a, b) => a.Diff.CompareTo(b.Diff));

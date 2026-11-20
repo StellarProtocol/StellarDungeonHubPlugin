@@ -4,7 +4,7 @@ using Stellar.Abstractions.Services;
 
 namespace Stellar.DungeonHub;
 
-// Dungeons hub — Guild Hunt (Hunt tab, FunctionID 500151), entered directly like a dungeon. Game facts:
+// Dungeons hub — Guild Hunt (Boss & Hunt tab, FunctionID 500151), entered directly like a dungeon. Game facts:
 // Dungeon-Access-Hub.md §8 "Guild Hunt". Paths below are under Resources\release_3.7\lua\lua.
 //   why     GoToFunc(500151) lands on the guild window's Hunt TAB, not the enter page — so the old "Open" went to the
 //           wrong place. The enter page (union_hunt_enter_into_main) is opened from the hunt NPC in the guild scene.
