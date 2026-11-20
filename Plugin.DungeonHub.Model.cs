@@ -116,6 +116,7 @@ public sealed partial class Plugin
                     if (e.IsNpc) e.Sub = DhNpcTitle(e.Key, e.Sub);   // our own subtitle replaces the game title (.Npc.cs)
                     if (e.Cap > 0) e.CapText = LF("dh.capText", e.Cap);
                     (e.SubText, e.TileVal) = DhCounterText(e.CounterVal, e.CounterZero);
+                    if (e.IsNpc) e.SubText = e.Sub;   // list sub-line = the title alone (DhRowSub; the warm-up prewarms it)
                     lists[tab].Add(e);
                     byKey[e.Key] = e;
                     break;
@@ -278,7 +279,7 @@ public sealed partial class Plugin
     // a one-difficulty raid (Backtrack): "Rewards left" for its pick; an activity's own line.
     private string DhRowSub(DhEntry e)
     {
-        if (e.IsNpc) return e.SubText;   // "<Title> · N services" (.Npc.cs DhParseSvc)
+        if (e.IsNpc) return e.SubText;   // the NPC title alone (set at parse)
         if (e.Locked) return L("dh.word.locked");
         if (e.IsActivity) return DhIsWb(e) ? DhWbRowSub(e) : DhIsGh(e) ? DhGhRowSub(e) : DhIsCm(e) ? DhCmRowSub(e) : e.SubText;
         if (e.Tab == DhTabHero && !e.Unstable)

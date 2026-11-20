@@ -21,7 +21,8 @@ namespace Stellar.DungeonHub;
 //            800527 Matrix Manifestation only: GoToFunc false WITHOUT a lock / scene reason → season_talent
 //            OpenRefineView() (the Refine tab of season_talent_function_main, §13).
 //
-// Records (FULL poll only, after the activities): E (tab 4, key 'n<npcId>', name, sub = the NPC title, or our DhNpcTitle override) and per service
+// Records (FULL poll only, after the activities): E (tab 4, key 'n<npcId>', name, sub = the NPC title, or our DhNpcTitle override —
+//   also the list row's whole sub-line, user 2026-11-21: the old " · N services" tail got truncated) and per service
 //   S  key, slot (0-based, NPC order), funcId, name, locked
 //   N  key, banner, banner fallback, thumb — the NPC's art paths (.NpcArt.cs); banner from ART below, thumb = NpcTable.MapIcon
 // The NpcTable / InteractiveTable / FunctionTable walk runs ONCE per login (cached on the hub's Lua stash st.npcs, a new
@@ -113,13 +114,11 @@ public sealed partial class Plugin
         var list = e.Services ??= new List<DhService>(DhNpcSlots);
         if (list.Count >= DhNpcSlots) return;   // more than the fixed rows: not shown (none today)
         list.Add(new DhService { FuncId = DcInt(f[3]), Name = f[4], Locked = f[5] == "1" });
-        // list sub-line "<Title> · N services", built once per catalog parse, read per frame (DhRowSub)
-        e.SubText = list.Count == 1 ? LF("dh.npc.sub1", e.Sub) : LF("dh.npc.sub", e.Sub, list.Count);
     }
 
     // Per-NPC subtitle override (user-approved 2026-11-21): the game's NpcTable.Title says what the NPC IS ("Legacy
     // Expert"), not what it's FOR, so an NPC may carry our own catalog line "dh.npc.title.<npcId>" (Mael 1008600 =
-    // "Factor Matrix & Exchange"). No key → the game title stays, so a newly listed NPC needs no catalog work. Resolved
+    // "Factor Merchant"). No key → the game title stays, so a newly listed NPC needs no catalog work. Resolved
     // at parse time (DhParse, entry key 'n<npcId>') like the rest of the sub-line, so it follows a language switch on
     // the next catalog poll. ILocalization.T returns the key literal for an unknown key — that is the "no override" test.
     private string DhNpcTitle(string entryKey, string gameTitle)
