@@ -33,7 +33,8 @@ namespace Stellar.DungeonHub;
 //   also the list row's whole sub-line, user 2026-11-21: the old " · N services" tail got truncated) and per SHOWN service
 //   S  key, slot (0-based, shown order), funcId, name, locked, material shop
 //   N  key, banner, banner fallback, thumb, backdrop — the NPC's art paths (.NpcArt.cs); banner / fallback / backdrop
-//      from the NPCS row below, thumb = NpcTable.MapIcon
+//      from the NPCS row below (backdrop: a '|'-joined chain), thumb = NpcTable.MapIcon, else the first service's
+//      FunctionTable DialogIcon / Icon
 // The NpcTable / InteractiveTable / FunctionTable walk runs ONCE per login (cached on the hub's Lua stash st.npcs, a new
 // Z.UIMgr on relog starts clean); a full poll then only re-reads each service's lock and hidden state.
 public sealed partial class Plugin
@@ -80,13 +81,22 @@ public sealed partial class Plugin
       end
       -- NPCS = the listed service NPCs, in list order: ONE row per NPC, so listing another is a one-line change.
       --   [1] NpcTable id · e = banner emblem (a path, or a function returning one) · f = its fallback (e did not load)
-      --   bg  = the banner's scenery backdrop (.NpcArt.cs; NPC IMAGE RULE, Dungeon-Access-Hub.md §13). Default AST: every
-      --         NPC below Mael stands in Asterleeds (scene 8), which has NO scenic-spot photo → the town's own
-      --         environment picture (Global.lua:520 EnvironmentResonanceScenePic[8]). Mael: the Lallipar Village
-      --         panorama (MapStickerTable scenic spot, Bahamar Highlands).
+      --   bg  = the banner's scenery backdrop (.NpcArt.cs; NPC IMAGE RULE, Dungeon-Access-Hub.md §13): a path, or a CHAIN
+      --         (list) tried in order, the first that loads wins. Default AST: every NPC below Mael stands in
+      --         Asterleeds (scene 8), which has NO scenic-spot photo → Asterleeds-themed event art. ⚠️ NOT the town's
+      --         environment picture ui/textures/env_textures/main_bg_4 (Global.lua:520): it does not ship (user log of
+      --         70d0525: FAILED for every NPC). The chain is sent as one '|'-joined string, so C# resolves it ONCE for
+      --         every NPC sharing it (.NpcArt.cs DhBgChainOf). Mael: the Lallipar Village panorama (MapStickerTable).
       --   pre = extra function ids shown FIRST (not on the NPC's buttons).
       -- Subtitles are C# catalog keys dh.npc.title.<id> (.Npc.cs DhNpcTitle); no key = the game's NpcTable.Title.
-      local AST = 'ui/textures/env_textures/main_bg_4'
+      local SA, TA = 'ui/background/seasonact/', 'ui/textures/themeact/themeact_bg/activity_themeact_'
+      local AST = {
+        SA .. 'activity_seasonact_201',   -- City Rally (Asterleeds)
+        SA .. 'activity_seasonact_208',   -- Street Theater
+        SA .. 'activity_seasonact_203',
+        SA .. 'activity_fireworks',
+        TA .. '331', TA .. '333', TA .. '325',
+      }
       local TAB, SDT = 'ui/atlas/item/c_tab_icon/com_icon_tab_', 'ui/textures/sevendaystarget/mengxin_'
       local CP, LP = 'ui/textures/collection_profession/collection_profession_pic_', 'ui/atlas/life_profession/life_profession_'
       local FP = 'ui/textures/feature_preview/feature_preview_picture_20'
@@ -162,7 +172,20 @@ public sealed partial class Plugin
           for _, p in ipairs(flat(n.NpcFunctionID)) do add(p[2]) end
           local banner
           if type(row.e) == 'function' then banner = try(row.e, '') else banner = row.e or '' end
-          npcs[#npcs + 1] = { nid, n.Name, n.Title or '', svc, banner, row.f or '', n.MapIcon or '', row.bg or AST }
+          -- thumb marker = NpcTable.MapIcon; empty (Lunel 1008599) → the first service's FunctionTable DialogIcon (the
+          -- talk-option icon), else its Icon (the tab icon)
+          local thumb = n.MapIcon or ''
+          if thumb == '' and svc[1] then
+            local fr = FTn.GetRow(svc[1][1], true)
+            -- try(): a field missing on the row must not drop the whole NPC (this runs inside its pcall)
+            if fr then
+              thumb = tostring(try(function() return fr.DialogIcon end, ''))
+              if thumb == '' then thumb = tostring(try(function() return fr.Icon end, '')) end
+            end
+          end
+          local bg = row.bg or AST
+          if type(bg) == 'table' then bg = table.concat(bg, '|') end
+          npcs[#npcs + 1] = { nid, n.Name, n.Title or '', svc, banner, row.f or '', thumb, bg }
         end) end
         -- tables not loaded yet → nothing cached, the next full poll reads them again
         if #npcs > 0 then st.npcs = npcs end

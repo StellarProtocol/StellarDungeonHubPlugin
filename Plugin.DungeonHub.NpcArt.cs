@@ -12,8 +12,10 @@ namespace Stellar.DungeonHub;
 //     cropped like every other entry (2026-11-21). No backdrop, or it did not load:
 //     the emblem alone as before — a WIDE image (pixel aspect ≥ DhNpcFitBelow) fills the band like every other entry
 //     (DcCrop); a square / tall one would lose most of itself to that crop, so it is drawn whole on the band's tile.
+//     The backdrop may be a CHAIN of paths (Asterleeds NPCs), resolved once per chain for every NPC on it (DhBgChainOf).
 //   • thumb (list row) = the same location backdrop, centre-cropped to the thumb and darkened like the banner (user
-//     2026-11-21), with the NPC's map marker aspect-fit on it (.NpcCompose.cs). No backdrop, or it failed: a
+//     2026-11-21), with the NPC's map marker (else its first service's icon, .Npc.cs) aspect-fit on it
+//     (.NpcCompose.cs). No backdrop, or it failed: a
 //     MultiTool-style gradient tile picked from the NPC id instead. No marker (or it failed) = the base alone.
 // Aspect-fit needs no extra element: the art GameTextureElements are Fill = false (letterbox, .Art.cs), and a uv cropped
 // to the box's aspect letterboxes to exactly the box — so "fill" = DcCrop'd uv, "fit" = the image's own uv. A composed
@@ -42,6 +44,7 @@ public sealed partial class Plugin
         public UvRect Uv;              // the display uv (fit: the image's own; fill / crop: cropped to the box)
         public UvRect Raw;             // the image's own uv (what a compose draws whole)
         public int W, H;               // the image's pixel footprint (for the log)
+        public bool Shared, ChainLogged;   // a backdrop chain shared by several NPCs (DhBgChainOf); its one-time log line
         public bool Settled => Done || At >= Paths.Length;
     }
 
@@ -69,11 +72,26 @@ public sealed partial class Plugin
             Sig = e.NpcBanner, SigThumb = e.NpcThumb, SigBg = e.NpcBackdrop,
             Banner = new DhArtPick { Paths = DhPaths(e.NpcBanner, e.NpcBannerFb), Mode = DhFit.ByShape },
             Thumb = new DhArtPick { Paths = DhPaths(e.NpcThumb, ""), Mode = DhFit.Fit },
-            Backdrop = new DhArtPick { Paths = DhPaths(e.NpcBackdrop, ""), Mode = DhFit.Crop },
+            Backdrop = DhBgChainOf(e.NpcBackdrop),
             Palette = DhGradIndex(npcId),
         };
         _dhNpcArt[e.Key] = a;
         return a;
+    }
+
+    // The backdrop is a '|'-joined CHAIN (.Npc.cs AST: 17 Asterleeds NPCs share one), tried in order like any pick. ONE
+    // pick object per chain string, shared by every NPC on it: the first NPC drawn walks the chain (3 s per dead path)
+    // and the rest reuse the winner — never 17 walks. Its Uv is always worked out for the band's box (DhNpcBandTex and
+    // DhNpcThumbTex both pass it), so sharing it is exact; the thumb crop is per NPC from its Raw uv.
+    private readonly Dictionary<string, DhArtPick> _dhBgChains = new();
+
+    private DhArtPick DhBgChainOf(string chain)
+    {
+        if (_dhBgChains.TryGetValue(chain, out var p)) return p;
+        var paths = chain.Length == 0 ? System.Array.Empty<string>() : chain.Split('|', System.StringSplitOptions.RemoveEmptyEntries);
+        p = new DhArtPick { Paths = paths, Mode = DhFit.Crop, Shared = true };
+        _dhBgChains[chain] = p;
+        return p;
     }
 
     private static string[] DhPaths(string a, string b) =>
@@ -169,15 +187,29 @@ public sealed partial class Plugin
         var tex = DhLoad(path, out var uv);
         if (tex != null)
         {
-            if (!p.Done) { DhPickResolve(p, tex, uv, box); DhNpcArtLog(e, a); }
+            if (!p.Done) { DhPickResolve(p, tex, uv, box); DhChainLog(p); DhNpcArtLog(e, a); }
             return tex;
         }
         if (p.Done) return null;   // was loaded once; null now = the framework dropped it (shows the tile, no fallback)
         if (!_dhArtAsked.Contains(path)) return null;   // not requested yet (DhLoad's per-frame budget): no clock
         double now = DcNow;
         if (p.Since < 0) p.Since = now;
-        else if (now - p.Since >= DhNpcArtWaitSec) { p.At++; p.Since = -1; if (p.At >= p.Paths.Length) DhNpcArtLog(e, a); }
+        else if (now - p.Since >= DhNpcArtWaitSec)
+        {
+            p.At++; p.Since = -1;
+            if (p.At >= p.Paths.Length) { DhChainLog(p); DhNpcArtLog(e, a); }
+        }
         return null;
+    }
+
+    // A shared backdrop chain of more than one path: which one won (and its size), once for all the NPCs on it.
+    private void DhChainLog(DhArtPick p)
+    {
+        if (!p.Shared || p.ChainLogged || p.Paths.Length < 2) return;
+        p.ChainLogged = true;
+        _services.Log.Info(p.Done
+            ? $"[DungeonHub] npc backdrop chain: {p.Paths[p.At]} won ({p.W}x{p.H}, candidate {p.At + 1} of {p.Paths.Length})"
+            : $"[DungeonHub] npc backdrop chain: FAILED all {p.Paths.Length} ({string.Join(", ", p.Paths)})");
     }
 
     private static void DhPickResolve(DhArtPick p, object tex, UvRect uv, float box)
@@ -216,7 +248,8 @@ public sealed partial class Plugin
     private static string DhPickNote(DhArtPick p)
     {
         if (p.Paths.Length == 0) return "none";
-        if (!p.Done) return $"FAILED all {p.Paths.Length} ({string.Join(", ", p.Paths)})";
+        if (!p.Done) return p.Shared && p.Paths.Length > 1 ? $"FAILED all {p.Paths.Length} (the shared chain, logged once)"
+                                                           : $"FAILED all {p.Paths.Length} ({string.Join(", ", p.Paths)})";
         var fb = p.At == 0 ? "" : $" [fallback {p.At}, '{p.Paths[0]}' did not load]";
         var mode = p.Mode == DhFit.Crop ? $"crop (focus {DhNpcBgFocus:0.00})" : p.Fit ? "fit (whole, centred)" : "fill (cropped)";
         return $"{p.Paths[p.At]} {p.W}x{p.H} {mode}{fb}";
