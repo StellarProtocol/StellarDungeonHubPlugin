@@ -154,7 +154,9 @@ public sealed partial class Plugin
           end
           for _, fid in ipairs(row.pre or {}) do add(fid) end
           for _, t in ipairs(n.InteractionTemplate or {}) do
-            local ir = IT.GetRow(tonumber(t[2]) or 0, true)
+            -- entries are {state, interactionId} (Mael) OR just {interactionId} (guild NPCs, Kien live 2026-11-21:
+            -- {{2030},{2025},{3002}}) → the id is the LAST element
+            local ir = IT.GetRow(tonumber(t[#t]) or 0, true)
             -- ActionStage = a list of STAGES, each a list of actions {type, param} (live 2026-11-20: 2605 =
             -- {{{'4','800527'}}}); ['4', fid] = EInteractionActionFunctionEntry, the first one is the button's page
             -- ['21', buildId, fid, …] = EInteractionActionUnionBuildFunc (guild NPCs, Kien): buildId 5 = E.UnionBuildId.Mall
