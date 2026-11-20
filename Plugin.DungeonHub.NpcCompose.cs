@@ -6,7 +6,8 @@ using UE = UnityEngine;
 namespace Stellar.DungeonHub;
 
 // Dungeons hub — composing the NPC tab's art (2026-11-21, user-approved): the banner = scenery backdrop + emblem, the
-// thumb = MultiTool-style gradient tile (Stellar-Design-Language.md §7) + map marker. Called from .NpcArt.cs.
+// thumb = the same backdrop cropped + dimmed (else a MultiTool-style gradient tile, Stellar-Design-Language.md §7) +
+// map marker. Called from .NpcArt.cs.
 //
 // GPU only, and only Graphics.Blit — its orientation is guaranteed (the raid compose, .ArtCompose.cs, falls back to
 // DrawTexture only for a mismatched shape). A Blit covers the WHOLE target, so an overlay that sits in a sub-rect is
@@ -27,6 +28,7 @@ public sealed partial class Plugin
     private const float DhNpcBgFocus = 0.50f;     // backdrop crop: the kept strip's centre, fraction from the top (tune)
     private const float DhNpcBgDim = 0.22f;       // backdrop darkened this far toward black, so the emblem reads
     private const float DhNpcEmblemH = 0.84f;     // emblem height / band height (drawn whole, centred)
+    private const float DhNpcEmblemMaxUp = 2f;    // an emblem never drawn past this × its native pixels (tune)
     private const float DhNpcIconH = 0.72f;       // map marker height / thumb height (aspect-fit, centred)
     private const int   DhNpcBandMaxW = 1304;     // band RT width cap (2× the 652-unit band)
     private const int   DhNpcOverlayMax = 1024;   // an overlay's copy is capped at this size
@@ -109,10 +111,12 @@ public sealed partial class Plugin
     }
 
     // ── banner: backdrop crop (already the band's aspect) → dim → emblem whole, centred ─────────────────────────────
-    private UE.RenderTexture? DhNpcComposeBand(object bgObj, UvRect bgCrop, object embObj, UvRect embUv, float box)
+    // dw / dh out = the emblem's drawn size in RT px (for the log).
+    private UE.RenderTexture? DhNpcComposeBand(object bgObj, UvRect bgCrop, object embObj, UvRect embUv, float box, out float dw, out float dh)
     {
         var prev = UE.RenderTexture.active;
         UE.RenderTexture? rt = null;
+        dw = dh = 0f;
         try
         {
             var bg = DcAsTex(bgObj); var emb = DcAsTex(embObj);
@@ -123,8 +127,12 @@ public sealed partial class Plugin
             UE.Graphics.Blit(bg, rt, new UE.Vector2(bgCrop.W, bgCrop.H), new UE.Vector2(bgCrop.X, bgCrop.Y));
             UE.Graphics.Blit(_dhDim!, rt, _dcCompMat);
             float ew = emb.width * embUv.W, eh = emb.height * embUv.H;
-            float dh = h * DhNpcEmblemH, dw = dh * ew / Math.Max(1f, eh);
+            dh = h * DhNpcEmblemH; dw = dh * ew / Math.Max(1f, eh);
             if (dw > w * 0.92f) { dh *= w * 0.92f / dw; dw = w * 0.92f; }   // a wide emblem: fit the width instead
+            // A small atlas icon (com_icon_tab_*, life_profession_*) would be blown up to the band's height and blur:
+            // capped at DhNpcEmblemMaxUp × its own pixels ON SCREEN — w RT px span the DhDetInW-unit band.
+            float cap = DhNpcEmblemMaxUp * Math.Max(1f, eh) * w / DhDetInW;
+            if (dh > cap) { dw *= cap / dh; dh = cap; }
             if (!DhNpcOverlay(rt, emb, embUv, (w - dw) / 2f, (h - dh) / 2f, dw, dh)) { DhReleaseRt(rt); return null; }
             return rt;
         }
@@ -137,18 +145,23 @@ public sealed partial class Plugin
         finally { UE.RenderTexture.active = prev; }
     }
 
-    // ── thumb: gradient tile → map marker aspect-fit, centred ───────────────────────────────────────────────────────
-    private UE.RenderTexture? DhNpcComposeThumb(UE.Texture2D grad, object iconObj, UvRect iconUv)
+    // ── thumb: base (backdrop crop + dim, or the gradient tile) → map marker aspect-fit, centred ──────────────────────
+    // Made at 2× the thumb (204×136, the gradient's own size). No marker (null) = the base alone (a darkened backdrop
+    // still needs this RT). No top-left highlight on a photo: it only lives in the gradient texture.
+    private UE.RenderTexture? DhNpcComposeThumb(object baseObj, UvRect baseUv, bool dim, object? iconObj, UvRect iconUv)
     {
         var prev = UE.RenderTexture.active;
         UE.RenderTexture? rt = null;
         try
         {
-            var icon = DcAsTex(iconObj);
-            if (icon == null || !DhNpcMaterials()) return null;
-            int w = grad.width, h = grad.height;
+            var bas = DcAsTex(baseObj);
+            var icon = iconObj != null ? DcAsTex(iconObj) : null;
+            if (bas == null || (iconObj != null && icon == null) || !DhNpcMaterials()) return null;
+            int w = Math.Max(2, (int)MathF.Round(DhThumbW * 2f)), h = Math.Max(2, (int)MathF.Round(DhThumbH * 2f));
             rt = DhNpcNewRt(w, h);
-            UE.Graphics.Blit(grad, rt);
+            UE.Graphics.Blit(bas, rt, new UE.Vector2(baseUv.W, baseUv.H), new UE.Vector2(baseUv.X, baseUv.Y));
+            if (dim) UE.Graphics.Blit(_dhDim!, rt, _dcCompMat);
+            if (icon == null) return rt;
             float iw = icon.width * iconUv.W, ih = icon.height * iconUv.H;
             float dh = h * DhNpcIconH, dw = dh * iw / Math.Max(1f, ih);
             if (dw > w * DhNpcIconH) { dh *= w * DhNpcIconH / dw; dw = w * DhNpcIconH; }

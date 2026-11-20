@@ -10,48 +10,61 @@ namespace Stellar.DungeonHub;
 // (static research only — the opens below were NOT tested in game when this was written).
 //
 //   NPC      NpcTable row → Name / Title / InteractionTemplate ({state, interactionId} pairs, in the NPC's own order).
-//   service  each InteractiveTable row of that list whose ActionStage holds ['4', fid] (= EInteractionActionFunctionEntry,
-//            whose handler is just gotofunc.GoToFunc(fid) with no NPC argument, interaction_action.lua:24-30); its name
-//            = FunctionTable[fid].Name. Other interactions (talk 3002, …) are skipped. The 3 m TriggerRange and the
-//            Condition [14, fid] only gate the button's visibility next to the NPC.
+//   service  three sources, in this order, a function id listed once (the first source wins):
+//            1. the NPC row's `pre` ids below — pages the NPC teaches but has no button for (life-skill instructors:
+//               the profession's crafting screen, FunctionTable Note 生活职业, user 2026-11-21);
+//            2. each InteractiveTable row of the template whose ActionStage holds ['4', fid] (=
+//               EInteractionActionFunctionEntry, whose handler is just gotofunc.GoToFunc(fid) with no NPC argument,
+//               interaction_action.lua:24-30). Other interactions (talk 3002, …) are skipped;
+//            3. NpcTable.NpcFunctionID = {interactBtnId, fid} pairs = the options INSIDE the talk dialog, opened with
+//               CheckFuncCanUse + GoToFunc (talk_option_vm.lua:163-208). Maxim / Grace have services only here.
+//            Name = FunctionTable[fid].Name; a life-skill MATERIAL shop (ParentId 800981 = E.FunctionID.LifeShop) has
+//            the same name as its craft, so C# labels it "dh.npc.materialShop".
+//   hidden   an event / time-limited service that is off right now is LEFT OUT (the game hides its button too), not
+//            shown Locked — DhNpcHiddenLua. Ordinary locks (level / quest) still show as Locked.
 //   locked   gotofunc.FuncIsOn(fid, true) = switch.CheckFuncSwitch(fid) — the unlock alone, no tip. NOT
 //            CheckFuncCanUse(fid, true): that adds the scene / buff / dead checks and would show every row Locked while
 //            standing in a dungeon (the raid list's reason for the same choice, §8 v4). The press re-checks it all.
 //   open     gotofunc.GoToFunc(fid) — CheckFuncCanUse(fid, false) (the game's own tip on refusal) + FunctionOrder.
 //            800527 Matrix Manifestation only: GoToFunc false WITHOUT a lock / scene reason → season_talent
-//            OpenRefineView() (the Refine tab of season_talent_function_main, §13).
+//            OpenRefineView() (the Refine tab of season_talent_function_main, §13). Life-skill crafts: DhLifeCraftPro.
 //
 // Records (FULL poll only, after the activities): E (tab 4, key 'n<npcId>', name, sub = the NPC title, or our DhNpcTitle override —
-//   also the list row's whole sub-line, user 2026-11-21: the old " · N services" tail got truncated) and per service
-//   S  key, slot (0-based, NPC order), funcId, name, locked
-//   N  key, banner, banner fallback, thumb, backdrop — the NPC's art paths (.NpcArt.cs); banner + backdrop from ART below,
-//      thumb = NpcTable.MapIcon
+//   also the list row's whole sub-line, user 2026-11-21: the old " · N services" tail got truncated) and per SHOWN service
+//   S  key, slot (0-based, shown order), funcId, name, locked, material shop
+//   N  key, banner, banner fallback, thumb, backdrop — the NPC's art paths (.NpcArt.cs); banner / fallback / backdrop
+//      from the NPCS row below, thumb = NpcTable.MapIcon
 // The NpcTable / InteractiveTable / FunctionTable walk runs ONCE per login (cached on the hub's Lua stash st.npcs, a new
-// Z.UIMgr on relog starts clean); a full poll then only re-reads each service's lock.
+// Z.UIMgr on relog starts clean); a full poll then only re-reads each service's lock and hidden state.
 public sealed partial class Plugin
 {
-    private const int DhNpcSlots = 6;   // fixed service rows: nothing shifts between NPCs (Mael has 5)
+    private const int DhNpcSlots = 7;   // fixed service rows: nothing shifts between NPCs (Cassie has 7)
     private const int DhMatrixFunc = 800527;   // E.FunctionID.SeasonTalentFactorRefine (Matrix Manifestation)
 
     private sealed class DhService { public int FuncId; public string Name = ""; public bool Locked; }
 
     // ── geometry (mock px → ×1.6, DcS / DcSE only: see the static-order note in .Window.cs) ─────────────────────────
-    private static readonly float DhSvcH = DcSE(40f), DhSvcGap = DcS(4f);                                  // 64 · 6
+    // Rows 54 (64 while there were 6) so SEVEN fit the same block: 7 × 54 + 6 × 6 = 414 ≤ 436; the 44 px Open pill stays.
+    private static readonly float DhSvcH = DcSE(34f), DhSvcGap = DcS(4f);                                  // 54 · 6
     private static readonly float DhSvcPadL = DcS(10f), DhSvcPadR = DcS(6f), DhSvcTagGap = DcS(6f);        // 16 · 10 · 10
     // The services block takes the rest of the panel column (art · name · title · SERVICES caption · block, 4 gaps), so
     // the panel is exactly as tall as every other tab's. A PROPERTY, not a static readonly: it reads .Window.cs fields,
     // whose initialisers may not have run yet when this file's do (partial-file static order is unspecified).
-    private static float DhSvcBlockH => DhColsH - 2f * DhPanPadY - DhArtH - DhNameH - DhActSubH - DhCapH - 4f * DhPanGap;   // 436 ≥ 6 × 64 + 5 × 6
+    private static float DhSvcBlockH => DhColsH - 2f * DhPanPadY - DhArtH - DhNameH - DhActSubH - DhCapH - 4f * DhPanGap;   // 436 ≥ 7 × 54 + 6 × 6
+
+    // Life-skill crafting function → its LifeProfessionTable ProId (rows 201-206: FunctionId 501004-501009). GoToFunc of
+    // these is unverified (their FunctionOrder is empty in the extracted tables), so the open uses the profession's own
+    // opener, life_profession.OpenLifeProfessionMainView(proId) (life_profession_vm.lua:557 — the life_profession_main
+    // view on that profession; QuickJumpLifeprofession :499 opens it the same way), after the full CheckFuncCanUse.
+    private const string DhLifeCraftPro = "{ [501004] = 201, [501005] = 202, [501006] = 203, [501007] = 204, [501008] = 205, [501009] = 206 }";
 
     private const string DhNpcCatalogLua = @"
-    -- NPC tab (tab 4, .Npc.cs). NPCS = the NpcTable ids listed, in this order; add an id to list another service NPC.
+    -- NPC tab (tab 4, .Npc.cs).
     pcall(function()
-      local NPCS = { 1008600 }   -- Mael 'Legacy Expert': Factor Dismantle / Exchange, Matrix Manifestation, Imprint Embedding / Inheritance
-      -- ART[npcId] = { banner, fallback, backdrop } (no entry = the empty band). Mael: the Matrix Manifestation page's art —
-      -- Z.Global.SeasonTalentEntryStorageIcon = {{seasonId, path}, …}, the pair of the current season as
-      -- season_talent_refine_sub_view.refreshTalentStorageIcon picks it (no match → the last pair, then the S4 literal);
-      -- fallback = the season emblem (SeasonGlobalTable.SeasonLevelIcon). [3] = the banner's scenery backdrop (.NpcArt.cs):
-      -- Mael stands near Lallipar Village (Bahamar Highlands) → its MapStickerTable scenic-spot photo, a plain texture.
+      local FTn = TM.GetTable('FunctionTableMgr')
+      -- Mael's banner emblem: the Matrix Manifestation page's art — Z.Global.SeasonTalentEntryStorageIcon = {{seasonId,
+      -- path}, …}, the pair of the current season as season_talent_refine_sub_view.refreshTalentStorageIcon picks it (no
+      -- match → the last pair, then the S4 literal).
       local function seasonArt()
         local sid = tostring(try(function() return Z.VMMgr.GetVM('season').GetCurrentSeasonId() end, ''))
         local hit, last
@@ -60,16 +73,68 @@ public sealed partial class Plugin
         end end)
         return hit or last or 'ui/textures/season_talent/season_talent_icon_s4'
       end
-      local ART = { [1008600] = { seasonArt, 'ui/atlas/season_talent/img_seasontalent_main_talent4',
-        'ui/textures/scenicspot/pic_scenicspotreputation_cunzhuangquanjing' } }
+      -- NPCS = the listed service NPCs, in list order: ONE row per NPC, so listing another is a one-line change.
+      --   [1] NpcTable id · e = banner emblem (a path, or a function returning one) · f = its fallback (e did not load)
+      --   bg  = the banner's scenery backdrop (.NpcArt.cs; NPC IMAGE RULE, Dungeon-Access-Hub.md §13). Default AST: every
+      --         NPC below Mael stands in Asterleeds (scene 8), which has NO scenic-spot photo → the town's own
+      --         environment picture (Global.lua:520 EnvironmentResonanceScenePic[8]). Mael: the Lallipar Village
+      --         panorama (MapStickerTable scenic spot, Bahamar Highlands).
+      --   pre = extra function ids shown FIRST (not on the NPC's buttons).
+      -- Subtitles are C# catalog keys dh.npc.title.<id> (.Npc.cs DhNpcTitle); no key = the game's NpcTable.Title.
+      local AST = 'ui/textures/env_textures/main_bg_4'
+      local TAB, SDT = 'ui/atlas/item/c_tab_icon/com_icon_tab_', 'ui/textures/sevendaystarget/mengxin_'
+      local CP, LP = 'ui/textures/collection_profession/collection_profession_pic_', 'ui/atlas/life_profession/life_profession_'
+      local FP = 'ui/textures/feature_preview/feature_preview_picture_20'
+      local NPCS = {
+        { 1008600, e = seasonArt, f = 'ui/atlas/season_talent/img_seasontalent_main_talent4',
+          bg = 'ui/textures/scenicspot/pic_scenicspotreputation_cunzhuangquanjing' },   -- Mael 'Legacy Expert'
+        { 106,      e = 'ui/textures/treasure/treasure_01' },                       -- Stella
+        { 21701001, e = TAB .. '302' },                                             -- Milia 'Class Guide'
+        { 1008889,  e = TAB .. '83' },                                              -- Erica
+        { 1008754,  e = SDT .. 'skill02_1' },                                       -- Mason
+        { 1008079,  e = SDT .. 'refine_1' },                                        -- Maxim
+        { 1008801,  e = SDT .. 'equip01_1' },                                       -- Harvey
+        { 1008078,  e = TAB .. '81' },                                              -- Grace
+        { 1008599,  e = FP },                                                       -- Lunel
+        { 1008000,  e = FP },                                                       -- Cassie
+        { 1008214,  e = TAB .. '246' },                                             -- Cuthbert
+        { 1008075,  e = TAB .. '209' },                                             -- Kalista
+        { 21707005, e = CP .. '2',  f = LP .. 'refine',     pre = { 501005 } },     -- Maurice, Alchemy
+        { 1008615,  e = CP .. '1',  f = LP .. 'magiccraft', pre = { 501007 } },     -- Hamilton, Gemcrafting
+        { 1008646,  e = CP .. '6',  f = LP .. 'foundry',    pre = { 501006 } },     -- Gary, Smelting
+        { 21707006, e = CP .. '10', f = LP .. 'woodwork',   pre = { 501008 } },     -- Cicero, Artisanry
+        { 1008805,  e = CP .. '3',  f = LP .. 'cook',       pre = { 501004 } },     -- Halva, Culinary
+        { 21707007, e = CP .. '9',  f = LP .. 'tailor',     pre = { 501009 } },     -- Maina, Weaving
+      }
       local npcs = st.npcs
       if not npcs then
         npcs = {}
-        local NPT, IT, FTn = TM.GetTable('NpcTableMgr'), TM.GetTable('InteractiveTableMgr'), TM.GetTable('FunctionTableMgr')
-        for _, nid in ipairs(NPCS) do pcall(function()
+        local NPT, IT = TM.GetTable('NpcTableMgr'), TM.GetTable('InteractiveTableMgr')
+        -- a pair / condition list read defensively: {{a, b…}, …}, or one level deeper like ActionStage (§13 — the
+        -- JSON's 2 levels were 3 live there); an entry whose [1] is not a plain value is unwrapped
+        local function flat(c)
+          local out = {}
+          for _, v in ipairs(c or {}) do
+            local k = type(v[1])
+            if k ~= 'number' and k ~= 'string' then for _, w in ipairs(v) do out[#out + 1] = w end else out[#out + 1] = v end
+          end
+          return out
+        end
+        for _, row in ipairs(NPCS) do pcall(function()
+          local nid = row[1]
           local n = NPT.GetRow(nid, true)
           if not n or (n.Name or '') == '' then return end
-          local svc = {}
+          local svc, seen = {}, {}
+          -- trig = the interaction's TriggerCondition minus its [14, fid] function checks (funcOn covers those): the
+          -- event-window conditions the game hides the button on (DhNpcHiddenLua)
+          local function add(fid, trig)
+            fid = tonumber(fid)
+            if not fid or fid <= 0 or seen[fid] then return end
+            seen[fid] = true
+            local fr = FTn.GetRow(fid, true)
+            svc[#svc + 1] = { fid, fr and fr.Name or '', trig, (fr and fr.ParentId == 800981) or false }
+          end
+          for _, fid in ipairs(row.pre or {}) do add(fid) end
           for _, t in ipairs(n.InteractionTemplate or {}) do
             local ir = IT.GetRow(tonumber(t[2]) or 0, true)
             -- ActionStage = a list of STAGES, each a list of actions {type, param} (live 2026-11-20: 2605 =
@@ -79,31 +144,96 @@ public sealed partial class Plugin
               for _, s in ipairs(stage) do if tostring(s[1]) == '4' then fid = tonumber(s[2]) break end end
               if fid then break end
             end end
-            if fid then svc[#svc + 1] = { fid, try(function() return FTn.GetRow(fid, true).Name end, '') } end
+            if fid then
+              local trig
+              for _, c in ipairs(flat(ir.TriggerCondition)) do
+                if tonumber(c[1]) ~= 14 then trig = trig or {} trig[#trig + 1] = c end
+              end
+              add(fid, trig)
+            end
           end
-          local art = ART[nid] or {}
-          local banner = art[1] and try(art[1], '') or ''
-          npcs[#npcs + 1] = { nid, n.Name, n.Title or '', svc, banner, art[2] or '', n.MapIcon or '', art[3] or '' }
+          -- NpcFunctionID: {{btnId, fid}, …} as talk_option_vm.createNpcFunctionOption reads it (v[1], v[2]); a
+          -- list nested one level deeper is unwrapped by flat, so either shape lists its services
+          for _, p in ipairs(flat(n.NpcFunctionID)) do add(p[2]) end
+          local banner
+          if type(row.e) == 'function' then banner = try(row.e, '') else banner = row.e or '' end
+          npcs[#npcs + 1] = { nid, n.Name, n.Title or '', svc, banner, row.f or '', n.MapIcon or '', row.bg or AST }
         end) end
         -- tables not loaded yet → nothing cached, the next full poll reads them again
         if #npcs > 0 then st.npcs = npcs end
       end
+" + DhNpcHiddenLua + @"
       for _, n in ipairs(npcs) do
         local key = 'n' .. n[1]
         rec('E', 4, key, n[2], '', '', 0, n[3], 0, 0, 0, 0, 0, '', 0, '', '', 0, 0, 0)
         rec('N', key, n[5], n[6], n[7], n[8])
-        for i, s in ipairs(n[4]) do rec('S', key, i - 1, s[1], s[2], b(not funcOn(s[1]))) end
+        local slot = 0
+        for _, s in ipairs(n[4]) do
+          local on = funcOn(s[1])
+          if not hidden(s[1], on, s[3]) then rec('S', key, slot, s[1], s[2], b(not on), b(s[4])) slot = slot + 1 end
+        end
       end
     end)
 ";
 
+    // hidden(fid, on, trig) — an event / time-limited service that is off right now is left out of the list (the game
+    // hides its NPC button then), user 2026-11-21. Recomputed on every FULL poll (cheap: a few table rows per service).
+    // The game's own gates, re-read the way it reads them:
+    //   • trig (the interaction's non-[14] TriggerCondition, the button's visibility) fails → hidden. Kalista's Renewal
+    //     Store 731036 = [9, 40059], condition_helper.lua:186 checkConditionType_9 = inside a TimerId window.
+    //   • the function is off for a NON-unlock reason, on it or any ParentId up the chain (switch_vm.lua:162-181
+    //     CheckFuncSwitch walks the same chain): OnOff = 1 (:170), the server / per-user close lists
+    //     switch_data.ServerCloseFunctionIdDic / UserCloseFunctionIdDic (checkFunctionIsClose :17-35 — how the server
+    //     turns a function off without a table change), or a FunctionTable TimerId whose window is not open now
+    //     (CheckTime :37). A level / quest lock is none of these → it stays, shown Locked.
+    //   • LIMITED: the three known limited-event functions, hidden whenever off, whatever the reason. 200508 / 200511 have
+    //     no TimerId and only a [14, fid] trigger (InteractiveTable 2523 / 2540), so the static tables can't tell their
+    //     event off from a plain lock; this list is the backstop (an id here never shows Locked).
+    private const string DhNpcHiddenLua = @"
+      local SD = try(function() return Z.DataMgr.Get('switch_data') end, nil)
+      local LIMITED = { [200508] = true, [200511] = true, [819305] = true }   -- Skill Reset / Imagine Conversion events, Renewal Store
+      local function timerOff(tid)
+        local s, e = Z.TimeTools.GetWholeStartEndTimeByTimerId(tid)
+        if not s or s <= 0 then return false end
+        local now = Z.TimeTools.Now() / 1000
+        return now < s or (e ~= nil and e > 0 and now > e)
+      end
+      local function closedOrTimed(fid)
+        local id = fid
+        for _ = 1, 8 do
+          local r = FTn.GetRow(id, true)
+          if not r then return false end
+          if r.OnOff == 1 then return true end
+          if SD and ((SD.ServerCloseFunctionIdDic or {})[id] or (SD.UserCloseFunctionIdDic or {})[id]) then return true end
+          if (r.TimerId or 0) ~= 0 and try(function() return timerOff(r.TimerId) end, false) then return true end
+          id = r.ParentId
+          if not id or id == 0 then return false end
+        end
+        return false
+      end
+      local function hidden(fid, on, trig)
+        if trig and not condOk(trig) then return true end
+        if on then return false end
+        return LIMITED[fid] or closedOrTimed(fid) or false
+      end
+";
+
     // Open one service page. Parks __stellarDHOpen = 'OK' / 'OK fallback …' / 'NO locked|here|failed …' / 'ERR …'.
     // GoToFunc runs the full CheckFuncCanUse with the game's own tip; the silent pre-checks only tell C# WHY it failed.
+    // A life-skill craft (DhLifeCraftPro) runs that same CheckFuncCanUse (tip on refusal), then its profession's opener;
+    // its 'OK life …' result carries the live FunctionOrder so the log shows what GoToFunc would have done.
     private static string DhNpcOpenChunk(int funcId) => DhOpenWrap(
         " local fid = " + Q(funcId) +
         " local gv = Z.VMMgr.GetVM('gotofunc')" +
         " local on = gv.FuncIsOn(fid, true)" +
         " local can = on and gv.CheckFuncCanUse(fid, true)" +
+        " local pro = (" + DhLifeCraftPro + ")[fid]" +
+        " if pro then" +
+        "   if not gv.CheckFuncCanUse(fid, false) then res = on and 'NO here' or 'NO locked' return end" +
+        "   Z.VMMgr.GetVM('life_profession').OpenLifeProfessionMainView(pro)" +
+        "   local fo = '' pcall(function() for _, v in ipairs(Z.TableMgr.GetTable('FunctionTableMgr').GetRow(fid).FunctionOrder) do fo = fo .. tostring(v) .. ' ' end end)" +
+        "   res = 'OK life profession ' .. pro .. ' (FunctionOrder ' .. fo .. ')' return" +
+        " end" +
         " local went = gv.GoToFunc(fid)" +
         " if went then res = 'OK' return end" +
         " if not on then res = 'NO locked' return end" +
@@ -112,11 +242,16 @@ public sealed partial class Plugin
         "   Z.VMMgr.GetVM('season_talent').OpenRefineView() res = 'OK fallback OpenRefineView (GoToFunc = ' .. tostring(went) .. ')' return end" +
         " res = 'NO failed GoToFunc = ' .. tostring(went)");
 
+    // S: key, slot, funcId, name, locked, material shop. A life-skill material shop carries its craft's name
+    // ("Alchemy" for both), so it gets our own "{0} Material Shop" line — resolved here, at parse, so it follows a
+    // language switch on the next catalog poll like the subtitle.
     private void DhParseSvc(DhEntry e, string[] f)
     {
         var list = e.Services ??= new List<DhService>(DhNpcSlots);
-        if (list.Count >= DhNpcSlots) return;   // more than the fixed rows: not shown (none today)
-        list.Add(new DhService { FuncId = DcInt(f[3]), Name = f[4], Locked = f[5] == "1" });
+        if (list.Count >= DhNpcSlots) return;   // more than the fixed rows: not shown (none today; Cassie has exactly 7)
+        var name = f[4];
+        if (f.Length > 6 && f[6] == "1") name = LF("dh.npc.materialShop", name);
+        list.Add(new DhService { FuncId = DcInt(f[3]), Name = name, Locked = f[5] == "1" });
     }
 
     // Per-NPC subtitle override (user-approved 2026-11-21): the game's NpcTable.Title says what the NPC IS ("Legacy
@@ -153,7 +288,7 @@ public sealed partial class Plugin
             : res.StartsWith("NO here", StringComparison.Ordinal) ? "dh.npc.notHere" : "dh.npc.failed", s.Name));
     }
 
-    // ── panel: art band · name · title · SERVICES · one 64 px row per service ─────────────────────────────────────
+    // ── panel: art band · name · title · SERVICES · one 54 px row per service (7) ─────────────────────────────────
     // No NPC portrait exists in the tables (NpcTable.NpcIcon is empty for Mael, ModelNpcTable holds only model parts),
     // so the band shows the NPC's ART banner (a page's art) over its scenery backdrop (.NpcArt.cs), or the empty-art tile.
     private HudElement DhNpcPanel()
