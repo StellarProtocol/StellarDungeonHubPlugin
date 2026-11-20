@@ -54,14 +54,14 @@ public sealed partial class Plugin
           local svc = {}
           for _, t in ipairs(n.InteractionTemplate or {}) do
             local ir = IT.GetRow(tonumber(t[2]) or 0, true)
-            if ir then for _, s in ipairs(ir.ActionStage or {}) do
-              -- ['4', fid] = EInteractionActionFunctionEntry; the first stage of that kind is the button's page
-              if tostring(s[1]) == '4' then
-                local fid = tonumber(s[2])
-                if fid then svc[#svc + 1] = { fid, try(function() return FTn.GetRow(fid, true).Name end, '') } end
-                break
-              end
+            -- ActionStage = a list of STAGES, each a list of actions {type, param} (live 2026-11-20: 2605 =
+            -- {{{'4','800527'}}}); ['4', fid] = EInteractionActionFunctionEntry, the first one is the button's page
+            local fid
+            if ir then for _, stage in ipairs(ir.ActionStage or {}) do
+              for _, s in ipairs(stage) do if tostring(s[1]) == '4' then fid = tonumber(s[2]) break end end
+              if fid then break end
             end end
+            if fid then svc[#svc + 1] = { fid, try(function() return FTn.GetRow(fid, true).Name end, '') } end
           end
           npcs[#npcs + 1] = { nid, n.Name, n.Title or '', svc }
         end) end
