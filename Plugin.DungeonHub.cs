@@ -72,6 +72,7 @@ public sealed partial class Plugin
         _dhTick?.Dispose();
         _dhHotkey?.Dispose();
         _dhRailButton?.Remove();   // the handle isn't IDisposable — Remove() pulls it and stops re-injection
+        DhReleaseMouse();   // hand the game its cursor back (.Mouse.cs)
         DhStopCentring();
         DhReleaseArt();
         DhDisposeNpcArt();   // the NPC gradient tiles + dim texture (.NpcCompose.cs)
@@ -90,6 +91,7 @@ public sealed partial class Plugin
         _dhFullDue = true;
         _dhWin.SetVisible(true);
         _dhWin.BringToFront();
+        DhSyncMouse(force: true);   // the game's free cursor while the hub is up, re-Added on every open (.Mouse.cs)
         DhStartCentring();
         // today's Unstable set: ask the server again (async RPC); the catalog re-reads it on a FULL poll ~1.5 s later
         if (_services.Lua.Ready) { _services.Lua.DoString(DhRefreshUnstableChunk); _dhFullAt = DcNow + 1.5; }
@@ -101,6 +103,7 @@ public sealed partial class Plugin
     {
         _dhShow = false;
         _dhWin.SetVisible(false);
+        DhSyncMouse();   // every hide ends here: ✕/Esc (OnClose), hotkey, close-on-action, logout (.Mouse.cs)
         DhStopCentring();
         DhReleaseArt();   // no composed raid art kept while hidden (.Art.cs)
     }
@@ -112,6 +115,7 @@ public sealed partial class Plugin
         DhFollowEnter();   // the direct enter's RPC result (.Enter.cs), followed while hidden too
         DhCmFollow();      // a commission Accept / Teleport RPC result (.Commissions.cs)
         DhWarmTick();      // the first-open warm-up after entering the world, one stage per tick (.Prewarm.cs)
+        DhSyncMouse();     // a bool compare; acts only on a change — loading screen / leaving the world (.Mouse.cs)
         if (!_dhShow && !_dhOpening) return;
         DhPoll();
     }
