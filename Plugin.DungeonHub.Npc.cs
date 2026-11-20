@@ -23,6 +23,7 @@ namespace Stellar.DungeonHub;
 //
 // Records (FULL poll only, after the activities): E (tab 4, key 'n<npcId>', name, sub = the NPC title, or our DhNpcTitle override) and per service
 //   S  key, slot (0-based, NPC order), funcId, name, locked
+//   N  key, banner, banner fallback, thumb — the NPC's art paths (.NpcArt.cs); banner from ART below, thumb = NpcTable.MapIcon
 // The NpcTable / InteractiveTable / FunctionTable walk runs ONCE per login (cached on the hub's Lua stash st.npcs, a new
 // Z.UIMgr on relog starts clean); a full poll then only re-reads each service's lock.
 public sealed partial class Plugin
@@ -44,6 +45,19 @@ public sealed partial class Plugin
     -- NPC tab (tab 4, .Npc.cs). NPCS = the NpcTable ids listed, in this order; add an id to list another service NPC.
     pcall(function()
       local NPCS = { 1008600 }   -- Mael 'Legacy Expert': Factor Dismantle / Exchange, Matrix Manifestation, Imprint Embedding / Inheritance
+      -- ART[npcId] = { banner, fallback } (no entry = the empty band). Mael: the Matrix Manifestation page's art —
+      -- Z.Global.SeasonTalentEntryStorageIcon = {{seasonId, path}, …}, the pair of the current season as
+      -- season_talent_refine_sub_view.refreshTalentStorageIcon picks it (no match → the last pair, then the S4 literal);
+      -- fallback = the season emblem (SeasonGlobalTable.SeasonLevelIcon).
+      local function seasonArt()
+        local sid = tostring(try(function() return Z.VMMgr.GetVM('season').GetCurrentSeasonId() end, ''))
+        local hit, last
+        pcall(function() for _, v in ipairs(Z.Global.SeasonTalentEntryStorageIcon) do
+          last = v[2] if tostring(v[1]) == sid then hit = v[2] end
+        end end)
+        return hit or last or 'ui/textures/season_talent/season_talent_icon_s4'
+      end
+      local ART = { [1008600] = { seasonArt, 'ui/atlas/season_talent/img_seasontalent_main_talent4' } }
       local npcs = st.npcs
       if not npcs then
         npcs = {}
@@ -63,7 +77,9 @@ public sealed partial class Plugin
             end end
             if fid then svc[#svc + 1] = { fid, try(function() return FTn.GetRow(fid, true).Name end, '') } end
           end
-          npcs[#npcs + 1] = { nid, n.Name, n.Title or '', svc }
+          local art = ART[nid] or {}
+          local banner = art[1] and try(art[1], '') or ''
+          npcs[#npcs + 1] = { nid, n.Name, n.Title or '', svc, banner, art[2] or '', n.MapIcon or '' }
         end) end
         -- tables not loaded yet → nothing cached, the next full poll reads them again
         if #npcs > 0 then st.npcs = npcs end
@@ -71,6 +87,7 @@ public sealed partial class Plugin
       for _, n in ipairs(npcs) do
         local key = 'n' .. n[1]
         rec('E', 4, key, n[2], '', '', 0, n[3], 0, 0, 0, 0, 0, '', 0, '', '', 0, 0, 0)
+        rec('N', key, n[5], n[6], n[7])
         for i, s in ipairs(n[4]) do rec('S', key, i - 1, s[1], s[2], b(not funcOn(s[1]))) end
       end
     end)
@@ -136,7 +153,7 @@ public sealed partial class Plugin
 
     // ── panel: art band · name · title · SERVICES · one 64 px row per service ─────────────────────────────────────
     // No NPC portrait exists in the tables (NpcTable.NpcIcon is empty for Mael, ModelNpcTable holds only model parts),
-    // so the band keeps the hub's empty-art tile (DhTex: no path → the DcTile fill), as an activity without art does.
+    // so the band shows the NPC's ART banner (a page's art, .NpcArt.cs), or the hub's empty-art tile without one.
     private HudElement DhNpcPanel()
     {
         var slots = new HudElement[DhNpcSlots];
