@@ -15,6 +15,8 @@ namespace Stellar.DungeonHub;
 // Loaded with IGameAssets.LoadByPath (null while loading → the box shows its empty tile, no layout jump) and cropped
 // to the box's aspect with DcCrop (raid: the cut-out's opaque band keeps the bosses' heads in). New loads and raid
 // composes are rationed per frame (DhLoad / DhComposeAllowed, .ArtLoad.cs) so an open never starts them all in one frame.
+// Both boxes are Fill = false (the framework's aspect-fit letterbox): a uv cropped to the box's aspect fits it exactly,
+// so cropped art looks as it did with Fill = true, and the NPC tab's square art can show WHOLE (.NpcArt.cs).
 public sealed partial class Plugin
 {
     private readonly UvRect[] _dhThumbUv = new UvRect[DhListSlots];
@@ -27,13 +29,13 @@ public sealed partial class Plugin
 
     private HudElement DhThumb(int i) => new CellElement(new BubbleElement(
         new GameTextureElement(() => DhThumbTex(i), (int)DhThumbW, (int)DhThumbH, () => _dhThumbUv[i])
-            { Fill = true, CornerRadius = (int)DcS(5f) })
+            { CornerRadius = (int)DcS(5f) })
     {
         FillColorFn = () => Fade(DcTile()), CornerRadius = DcS(5f), PaddingX = 0f, PaddingY = 0f, MaxWidth = DhThumbW,
     }, Width: DhThumbW);
 
     private HudElement DhArtBand() => new BubbleElement(
-        new GameTextureElement(DhBandTex, (int)DhDetInW, (int)DhArtH, () => _dhBandUv) { Fill = true, CornerRadius = (int)DhRadius })
+        new GameTextureElement(DhBandTex, (int)DhDetInW, (int)DhArtH, () => _dhBandUv) { CornerRadius = (int)DhRadius })
     {
         FillColorFn = () => Fade(DcTile()), CornerRadius = DhRadius, PaddingX = 0f, PaddingY = 0f,
     };
@@ -43,6 +45,7 @@ public sealed partial class Plugin
         var e = DhAt(i);
         if (e == null) return null;
         _dhThumbKey[i] ??= "";
+        if (e.IsNpc) return DhNpcThumbTex(e, ref _dhThumbKey[i], ref _dhThumbUv[i]);   // map marker, fit (.NpcArt.cs)
         return DhTex(DhArtOf(e), e.ArtBg, DhThumbW / DhThumbH, ref _dhThumbKey[i], ref _dhThumbUv[i]);
     }
 
@@ -50,6 +53,7 @@ public sealed partial class Plugin
     {
         var e = DhCur;
         if (e == null) return null;
+        if (e.IsNpc) return DhNpcBandTex(e, ref _dhBandKey, ref _dhBandUv);   // banner, fit or fill by its shape (.NpcArt.cs)
         string art = DhArtOf(e), bg = e.ArtBg;
         if (!e.IsActivity)
         {

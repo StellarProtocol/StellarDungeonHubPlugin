@@ -202,7 +202,7 @@ public sealed partial class Plugin
         for _, v in ipairs(rows) do rec(table.unpack(v)) end
       end
     end
-    -- activities (tabs 2-4)
+    -- activities (tabs 2 Boss & Hunt, 3 Other)
     local rpd = Z.DataMgr.Get('recommendedplay_data')
     local FT = TM.GetTable('FunctionTableMgr')
     -- Art fallback when the recommended-play config has none: that map only holds THIS season's SeasonActTable rows,
@@ -248,14 +248,15 @@ public sealed partial class Plugin
       local sub = not on and 'Locked' or ''
       rec('E', tab, 'a' .. fid, name, art or '', '', b(not on), sub, 0, 0, 0, 0, 0, '', fid, ck, cv, cz, cm, aid)
     end
+    -- Boss & Hunt (tab 2, 2026-11-20: the old World Boss + Hunt tabs merged), World Boss first
     act(2, E.FunctionID.WorldBoss)
-    act(3, E.FunctionID.WeeklyHunt)
-    act(3, E.FunctionID.UnionHunt)
-    -- Bureau Commissions (800100) first on the Other tab: its name / art = the recommended-play row (SeasonActTable 10,
+    act(2, E.FunctionID.WeeklyHunt)
+    act(2, E.FunctionID.UnionHunt)
+    -- Other (tab 3). Bureau Commissions (800100) first: its name / art = the recommended-play row (SeasonActTable 10,
     -- BackGroundPic activity_weituo); its live state is the C record (.Commissions.cs)
-    act(4, E.FunctionID.WorldEvent)
-    act(4, 300301)
-    act(4, E.FunctionID.RogueMain)
+    act(3, E.FunctionID.WorldEvent)
+    act(3, 300301)
+    act(3, E.FunctionID.RogueMain)
     pcall(function()
       local seen, list = {}, {}
       for _, r in pairs(TM.GetTable('ActivityDungeonTableMgr').GetDatas()) do
@@ -264,7 +265,7 @@ public sealed partial class Plugin
         end
       end
       table.sort(list)
-      for _, fid in ipairs(list) do act(4, fid, seen[fid]) end
+      for _, fid in ipairs(list) do act(3, fid, seen[fid]) end
     end)
 ";
 

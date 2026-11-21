@@ -23,14 +23,18 @@ namespace Stellar.DungeonHub;
 //      (.GuildHunt.cs)
 //   C  Bureau Commissions: haveQuest, acceptLeft, total, cap, resetSec, resetHow, n, (id, name, area, done, dungeonId) × n
 //      (.Commissions.cs)
+//   S  NPC service (FULL poll, after its NPC's E on tab 4): key, slot, funcId, name, locked (.Npc.cs)
 // E/V come only with a FULL poll (catalog, every DhFullEvery polls or on demand); T and M come with every poll.
 public sealed partial class Plugin
 {
-    private const int DhTabCount = 5, DhTabHero = 0, DhTabRaid = 1;
+    // Tabs (2026-11-20, user-approved dungeon-hub-npc-tab-APPROVED.html): Dungeons · Raid · Boss & Hunt (the old World
+    // Boss + Hunt tabs merged; DhTabWb = 2, .WorldBoss.cs) · Other · NPC. Tabs 2 and 3 hold activities (DhEntry.IsActivity);
+    // the NPC tab is its own kind (.Npc.cs) and never an activity. Saved tab index migrated once in InitDungeonHub.
+    private const int DhTabCount = 5, DhTabHero = 0, DhTabRaid = 1, DhTabOther = 3, DhTabNpc = 4;
     // Hero level slots: 1 Normal · 2 Hard · 3 Master (= the page's StarLevel); slot 0 is used only by an Unstable entry
     // (v5: Unstable is its own list entry with that one level, no longer a chip on the regular dungeon).
     private const int DhChipCount = 4, DhUnstableIdx = 0, DhMasterIdx = 3;
-    private static readonly string[] DhTabKeys = { "dh.tab.dungeons", "dh.tab.raid", "dh.tab.worldBoss", "dh.tab.hunt", "dh.tab.other" };
+    private static readonly string[] DhTabKeys = { "dh.tab.dungeons", "dh.tab.raid", "dh.tab.bossHunt", "dh.tab.other", "dh.tab.npc" };
 
     private sealed class DhLevel
     {
@@ -53,7 +57,10 @@ public sealed partial class Plugin
         public string? HighSub;                     // DhRowSub's cache (entries are rebuilt on every catalog parse)
         public readonly DhLevel?[] Levels = new DhLevel?[DhChipCount];   // hero: Unstable, Normal, Hard (3 = Master, polled
                                                                           // as M rows); raid: Easy, Hard, Nightmare
-        public bool IsActivity => Tab > DhTabRaid;
+        public bool IsActivity => Tab > DhTabRaid && Tab <= DhTabOther;   // Boss & Hunt + Other, never the NPC tab
+        public bool IsNpc => Tab == DhTabNpc;
+        public List<DhService>? Services;   // NPC tab only: its services in the NPC's order (S records, .Npc.cs)
+        public string NpcBanner = "", NpcBannerFb = "", NpcThumb = "", NpcBackdrop = "";   // NPC tab only: art paths (N record, .NpcArt.cs)
     }
 
     private sealed class DhLiveState
@@ -106,8 +113,10 @@ public sealed partial class Plugin
                     if (f.Length > 20) e.Unstable = f[20] == "1";
                     if (f.Length > 21) e.Title = f[21];
                     if (f.Length > 22) e.MasterOn = f[22] == "1";
+                    if (e.IsNpc) e.Sub = DhNpcTitle(e.Key, e.Sub);   // our own subtitle replaces the game title (.Npc.cs)
                     if (e.Cap > 0) e.CapText = LF("dh.capText", e.Cap);
                     (e.SubText, e.TileVal) = DhCounterText(e.CounterVal, e.CounterZero);
+                    if (e.IsNpc) e.SubText = e.Sub;   // list sub-line = the title alone (DhRowSub; the warm-up prewarms it)
                     lists[tab].Add(e);
                     byKey[e.Key] = e;
                     break;
@@ -158,6 +167,9 @@ public sealed partial class Plugin
                 case "W" when f.Length >= 10: DhParseWb(f); break;   // World Boss timer + this week's boss (.WorldBoss.cs)
                 case "G" when f.Length >= 16: DhParseGh(f); break;   // Guild Hunt guild / window / counters (.GuildHunt.cs)
                 case "C" when f.Length >= 8: DhParseCm(f); break;    // Bureau Commissions quest / events (.Commissions.cs)
+                case "S" when f.Length >= 6 && byKey.TryGetValue(f[1], out var npc): DhParseSvc(npc, f); break;   // NPC service (.Npc.cs)
+                case "N" when f.Length >= 5 && byKey.TryGetValue(f[1], out var nArt):   // NPC art paths (.NpcArt.cs)
+                    nArt.NpcBanner = f[2]; nArt.NpcBannerFb = f[3]; nArt.NpcThumb = f[4]; nArt.NpcBackdrop = f.Length > 5 ? f[5] : ""; break;
             }
         }
         if (full)
@@ -166,8 +178,9 @@ public sealed partial class Plugin
             for (int i = 0; i < DhTabCount; i++) _dhLists[i].AddRange(lists[i]);
             if (!_dhHaveCatalog)
                 _services.Log.Info($"[DungeonHub] catalog: {_dhLists[0].Count} dungeons, {_dhLists[1].Count} raids, " +
-                    $"{_dhLists[2].Count + _dhLists[3].Count + _dhLists[4].Count} activities");
+                    $"{_dhLists[2].Count + _dhLists[3].Count} activities, {_dhLists[DhTabNpc].Count} NPCs");
             _dhHaveCatalog = true;
+            DhNpcRebuildView();   // the NPC view still holds the previous parse's entries (.NpcPins.cs)
         }
         _dhMaster.Sort((a, b) => a.Diff.CompareTo(b.Diff));
         DhBuildLiveText();
@@ -191,7 +204,8 @@ public sealed partial class Plugin
     private int _dhMasterDiff;          // the Master level picked in the grid (1-based); 0 = not chosen yet
     private string _dhLevelFor = "";    // the entry key _dhLevelIdx / _dhMasterDiff belong to
 
-    private List<DhEntry> DhList => _dhLists[_dhTab];
+    // The NPC tab shows its pinned / searched VIEW (.NpcPins.cs), every other tab its catalog list.
+    private List<DhEntry> DhList => _dhTab == DhTabNpc ? _dhNpcView : _dhLists[_dhTab];
 
     private DhEntry? DhCur
     {
@@ -199,6 +213,9 @@ public sealed partial class Plugin
         {
             var list = DhList;
             foreach (var e in list) if (e.Key == _dhSelKey[_dhTab]) return e;
+            // No search match: the detail keeps the NPC it showed (the list says "No NPC matches").
+            if (list.Count == 0 && _dhTab == DhTabNpc)
+                foreach (var e in _dhLists[DhTabNpc]) if (e.Key == _dhSelKey[_dhTab]) return e;
             return list.Count > 0 ? list[0] : null;
         }
     }
@@ -254,7 +271,7 @@ public sealed partial class Plugin
         get
         {
             var e = DhCur;
-            if (e == null || e.IsActivity) return null;
+            if (e == null || e.IsActivity || e.IsNpc) return null;
             if (DhIsMaster) { foreach (var l in _dhMaster) if (l.Diff == _dhMasterDiff) return l; return null; }
             return e.Levels[Math.Clamp(_dhLevelIdx, 0, DhChipCount - 1)];
         }
@@ -267,6 +284,7 @@ public sealed partial class Plugin
     // a one-difficulty raid (Backtrack): "Rewards left" for its pick; an activity's own line.
     private string DhRowSub(DhEntry e)
     {
+        if (e.IsNpc) return e.SubText;   // the NPC title alone (set at parse)
         if (e.Locked) return L("dh.word.locked");
         if (e.IsActivity) return DhIsWb(e) ? DhWbRowSub(e) : DhIsGh(e) ? DhGhRowSub(e) : DhIsCm(e) ? DhCmRowSub(e) : e.SubText;
         if (e.Tab == DhTabHero && !e.Unstable)

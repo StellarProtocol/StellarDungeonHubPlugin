@@ -40,7 +40,17 @@ public sealed partial class Plugin
 
     private void InitDungeonHub()
     {
+        // One-time migration (2026-11-20 tab merge): old 2 World Boss / 3 Hunt → 2 Boss & Hunt, old 4 Other → 3 Other;
+        // the marker key keeps it from re-mapping a NEW index (3 Other / 4 NPC) on the next start.
+        if (!_cfg.Get<bool>("dungeon_hub_tab_v2", false))
+        {
+            int old = _cfg.Get<int>("dungeon_hub_tab", 0);
+            _cfg.Set<int>("dungeon_hub_tab", old switch { 3 => 2, 4 => 3, _ => old });
+            _cfg.Set<bool>("dungeon_hub_tab_v2", true);
+            _cfg.Save();
+        }
         _dhTab = Math.Clamp(_cfg.Get<int>("dungeon_hub_tab", 0), 0, DhTabCount - 1);
+        DhNpcLoadPins();         // pinned NPCs, in pin order (.NpcPins.cs)
         DhBuildLiveText();       // the header / bar texts before the first poll ("Solo", "Not in a party")
         _dhWin = DhRegister();   // Plugin.DungeonHub.Window.cs
         // Registered UNBOUND (null default key) — rebindable in the hotkey settings, the user assigns the key.
@@ -63,8 +73,10 @@ public sealed partial class Plugin
         _dhTick?.Dispose();
         _dhHotkey?.Dispose();
         _dhRailButton?.Remove();   // the handle isn't IDisposable — Remove() pulls it and stops re-injection
+        DhReleaseMouse();   // hand the game its cursor back (.Mouse.cs)
         DhStopCentring();
         DhReleaseArt();
+        DhDisposeNpcArt();   // the NPC gradient tiles + dim texture (.NpcCompose.cs)
         _services.ClientState.Logout -= OnDhLogout;
     }
 
@@ -80,6 +92,7 @@ public sealed partial class Plugin
         _dhFullDue = true;
         _dhWin.SetVisible(true);
         _dhWin.BringToFront();
+        DhSyncMouse(force: true);   // the game's free cursor while the hub is up, re-Added on every open (.Mouse.cs)
         DhStartCentring();
         // today's Unstable set: ask the server again (async RPC); the catalog re-reads it on a FULL poll ~1.5 s later
         if (_services.Lua.Ready) { _services.Lua.DoString(DhRefreshUnstableChunk); _dhFullAt = DcNow + 1.5; }
@@ -91,6 +104,7 @@ public sealed partial class Plugin
     {
         _dhShow = false;
         _dhWin.SetVisible(false);
+        DhSyncMouse();   // every hide ends here: ✕/Esc (OnClose), hotkey, close-on-action, logout (.Mouse.cs)
         DhStopCentring();
         DhReleaseArt();   // no composed raid art kept while hidden (.Art.cs)
     }
@@ -102,6 +116,7 @@ public sealed partial class Plugin
         DhFollowEnter();   // the direct enter's RPC result (.Enter.cs), followed while hidden too
         DhCmFollow();      // a commission Accept / Teleport RPC result (.Commissions.cs)
         DhWarmTick();      // the first-open warm-up after entering the world, one stage per tick (.Prewarm.cs)
+        DhSyncMouse();     // a bool compare; acts only on a change — loading screen / leaving the world (.Mouse.cs)
         if (!_dhShow && !_dhOpening) return;
         DhPoll();
     }

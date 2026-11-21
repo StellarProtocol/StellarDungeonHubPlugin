@@ -4,7 +4,7 @@ using Stellar.Abstractions.Services;
 
 namespace Stellar.DungeonHub;
 
-// Dungeons hub — the World Boss tab (World Boss Crusade, FunctionID 800902). Game facts: Dungeon-Access-Hub.md §8
+// Dungeons hub — World Boss on the Boss & Hunt tab (World Boss Crusade, FunctionID 800902). Game facts: Dungeon-Access-Hub.md §8
 // "World Boss". Paths below are under Resources\release_3.7\lua\lua.
 //   status  the event timer, NOT the function switch (open all week) and NOT SeasonActTable.OpenTimerId 601:
 //           left, before = Z.TimeTools.GetLeftTimeByTimerId(Z.WorldBoss.WorldBossOpenTimerId = 220); open = left > 0 and
@@ -127,7 +127,7 @@ public sealed partial class Plugin
     }, Gap: DhPanGap);
 
     // ── actions ───────────────────────────────────────────────────────────────────────────────────────────────────
-    // Hub open / World Boss tab shown: fetch this week's boss (throttled to one RPC per 10 s on the Lua side).
+    // Hub open / Boss & Hunt tab shown: fetch this week's boss (throttled to one RPC per 10 s on the Lua side).
     private void DhWbFetch()
     {
         if (_services.ClientState.Phase != GamePhase.World || !_services.Lua.Ready) return;

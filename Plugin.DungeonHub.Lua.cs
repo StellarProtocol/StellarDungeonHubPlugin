@@ -197,7 +197,7 @@ public sealed partial class Plugin
       end
     end) end
     if not FULL then return table.concat(out, RS) end
-" + DhCatalogLua + @"
+" + DhCatalogLua + DhNpcCatalogLua + @"
     return table.concat(out, RS)
   end)
   rawset(_G, '__stellarDHSnap', ok and res or ('ERR ' .. tostring(res)))

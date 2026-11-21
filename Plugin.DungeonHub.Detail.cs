@@ -6,7 +6,7 @@ using Stellar.Abstractions.Services;
 namespace Stellar.DungeonHub;
 
 // Dungeons hub — the right-hand panel: art band, name, DIFFICULTY (chips + the Master level grid), the info tiles,
-// and HOW TO GO (Solo / Match / Party). Activities (World Boss / Hunt / Other tabs) get a minimal variant: art,
+// and HOW TO GO (Solo / Match / Party). Activities (Boss & Hunt / Other tabs) get a minimal variant: art,
 // name, tiles, and Open — World Boss instead: its event-timer status and one Match (.WorldBoss.cs).
 //
 // Nothing moves between states: each button is a fixed 210/212 × 64 slot that is either a clickable pill or its
@@ -280,9 +280,9 @@ public sealed partial class Plugin
         }, Gap: 0.01f)),
     }, Gap: 0.01f, Justify: RowJustify.Center);
 
-    // ── activity panel (World Boss / Hunt / Other) ───────────────────────────────────────────────────────────────
+    // ── activity panel (Boss & Hunt / Other) ────────────────────────────────────────────────────────────────────
     // World Boss: "This week: <boss>" line, three tiles (Rewards left · Status from its event timer · Opens) and ONE
-    // full-width Match (no "Open the game's page"). Hunt / Other: the two tiles + Open (+ an empty Match slot) as before;
+    // full-width Match (no "Open the game's page"). Weekly Hunt / Other: the two tiles + Open (+ an empty Match slot) as before;
     // their Status is still the function switch only. The sub-line strut is there for every tab, so heights match.
     private HudElement DhActivityPanel() => DhPanelNoCaption(
         DhArtBand(),
