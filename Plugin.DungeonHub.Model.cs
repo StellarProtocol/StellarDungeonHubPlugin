@@ -180,6 +180,7 @@ public sealed partial class Plugin
                 _services.Log.Info($"[DungeonHub] catalog: {_dhLists[0].Count} dungeons, {_dhLists[1].Count} raids, " +
                     $"{_dhLists[2].Count + _dhLists[3].Count} activities, {_dhLists[DhTabNpc].Count} NPCs");
             _dhHaveCatalog = true;
+            DhNpcRebuildView();   // the NPC view still holds the previous parse's entries (.NpcPins.cs)
         }
         _dhMaster.Sort((a, b) => a.Diff.CompareTo(b.Diff));
         DhBuildLiveText();
@@ -203,7 +204,8 @@ public sealed partial class Plugin
     private int _dhMasterDiff;          // the Master level picked in the grid (1-based); 0 = not chosen yet
     private string _dhLevelFor = "";    // the entry key _dhLevelIdx / _dhMasterDiff belong to
 
-    private List<DhEntry> DhList => _dhLists[_dhTab];
+    // The NPC tab shows its pinned / searched VIEW (.NpcPins.cs), every other tab its catalog list.
+    private List<DhEntry> DhList => _dhTab == DhTabNpc ? _dhNpcView : _dhLists[_dhTab];
 
     private DhEntry? DhCur
     {
@@ -211,6 +213,9 @@ public sealed partial class Plugin
         {
             var list = DhList;
             foreach (var e in list) if (e.Key == _dhSelKey[_dhTab]) return e;
+            // No search match: the detail keeps the NPC it showed (the list says "No NPC matches").
+            if (list.Count == 0 && _dhTab == DhTabNpc)
+                foreach (var e in _dhLists[DhTabNpc]) if (e.Key == _dhSelKey[_dhTab]) return e;
             return list.Count > 0 ? list[0] : null;
         }
     }

@@ -236,11 +236,21 @@ public sealed partial class Plugin
     {
         var slots = new HudElement[DhListSlots];
         for (int i = 0; i < DhListSlots; i++) slots[i] = DhListSlot(i);
-        return DhPanel(() => L(DhTab == DhTabHero ? "dh.cap.dungeon" : DhTab == DhTabRaid ? "dh.cap.raid"
-                : DhTab == DhTabNpc ? "dh.cap.npc" : "dh.cap.activity"),
-            () => DhCur?.CapText ?? "",
-            new ScrollElement(new ListElement(() => Math.Min(DhListSlots, DhList.Count), slots), DhScrollH) { FixedHeight = true });
+        // The NPC tab swaps its caption for the search field (.NpcPins.cs) — both 28 px, so the viewport keeps its height.
+        return new BubbleElement(new ColumnElement(new HudElement[]
+        {
+            new ConditionalElement(() => _dhTab == DhTabNpc, DhNpcSearchRow(),
+                DhCaption(() => L(DhTab == DhTabHero ? "dh.cap.dungeon" : DhTab == DhTabRaid ? "dh.cap.raid" : "dh.cap.activity"),
+                    () => DhCur?.CapText ?? "")),
+            new ScrollElement(new ListElement(DhListCount, slots), DhScrollH) { FixedHeight = true },
+        }, Gap: DhPanGap))
+        {
+            FillColorFn = () => Fade(PanelColor()), CornerRadius = DhRadius, PaddingX = DhPanPadX, PaddingY = DhPanPadY,
+        };
     }
+
+    // Shown slots; a search with no match shows ONE (the "No NPC matches" row in slot 0).
+    private int DhListCount() => DhNpcNoMatch ? 1 : Math.Min(DhListSlots, DhList.Count);
 
     private int DhTab => _dhTab;
 
@@ -249,6 +259,7 @@ public sealed partial class Plugin
     // rows, so a header is an optional line at the top of the slot of the entry it introduces.
     private string DhGroupHeader(int i)
     {
+        if (_dhTab == DhTabNpc) return DhNpcGroupHeader(i);   // "PINNED" / "ALL" (.NpcPins.cs)
         if (_dhTab != DhTabHero || DhAt(i) is not { } e) return "";
         if (e.Unstable) return i == 0 ? L("dh.grp.openToday") : "";
         return i > 0 && DhAt(i - 1) is { Unstable: true } ? L("dh.grp.dungeons") : "";
@@ -269,19 +280,30 @@ public sealed partial class Plugin
             new SpacerElement(DhGrpPadX, DhGrpH),
             DcBold(() => DhGroupHeader(i), MutedColor, DhFsTiny),
         }, Gap: 0.01f)),
-        new ConditionalElement(() => DhAt(i) is { Unstable: true }, DhListRow(i, unstable: true), DhListRow(i, unstable: false)),
+        DhListSlotRow(i),
         // No trailing pad after the LAST visible slot: it is invisible but counts toward content height. Measured
         // 2026-11-09 (1 Unstable + 6 dungeons): content 707.7 px vs the 706 px viewport (handle 704.3/706) -> the
         // AutoHide scrollbar showed and the framework treated the list as scrollable (blocking window drag there).
-        new ConditionalElement(() => i < Math.Min(DhListSlots, DhList.Count) - 1, new SpacerElement(0f, DhRowPitchPad)),
+        new ConditionalElement(() => i < DhListCount() - 1, new SpacerElement(0f, DhRowPitchPad)),
     }, Gap: 0.01f);
+
+    // The row look of a slot: NPC (★ slot, .NpcPins.cs) · Unstable · regular; slot 0 also carries the no-match row.
+    private HudElement DhListSlotRow(int i)
+    {
+        HudElement row = new ConditionalElement(() => _dhTab == DhTabNpc, DhListRow(i, unstable: false, npc: true),
+            new ConditionalElement(() => DhAt(i) is { Unstable: true }, DhListRow(i, unstable: true), DhListRow(i, unstable: false)));
+        return i == 0 ? new ConditionalElement(() => DhNpcNoMatch, DhNpcEmptyRow(), row) : row;
+    }
 
     // One 84 px Tile row: art thumb · bold name over a muted sub-line. Selected = accent outline + a stronger accent
     // tint; locked = faded tile + text. Unstable (v5 mock .it.u): a light-blue left edge + an "UNSTABLE" tag before the
     // name.
-    private HudElement DhListRow(int i, bool unstable)
+    // NPC (npc: true): the text column gives up a constant ★ slot at the right edge (.NpcPins.cs DhNpcRowStar), on
+    // every NPC row, so pinning never moves a row's text.
+    private HudElement DhListRow(int i, bool unstable, bool npc = false)
     {
-        float nameW = unstable ? DhRowTextW - DhTagW - DhTagGap : DhRowTextW;
+        float textW = npc ? DhRowTextW - DhStarSlotW : DhRowTextW;
+        float nameW = unstable ? textW - DhTagW - DhTagGap : textW;
         HudElement name = new TextElement(() => DhAt(i)?.Name ?? "", Color: () => DhAt(i) is { Locked: true } ? MutedColor() : TextColor(),
             Width: nameW, NoWrap: true, FontSize: DhFsName) { Bold = true, Ellipsize = true };
         if (unstable) name = new RowElement(new HudElement[] { DhUnstableTag(), new SpacerElement(DhTagGap, 0f), new CellElement(name, Width: nameW) }, Gap: 0.01f);
@@ -291,19 +313,16 @@ public sealed partial class Plugin
                 { FillColorFn = () => Fade(DhBlue), CornerRadius = DcS(2f), PaddingX = 0f, PaddingY = 0f, MaxWidth = DhUBarW }, Width: DhUBarW),
             new SpacerElement(DhRowLead - DhUBarW, DhRowH),
         }, Gap: 0.01f);
-        return new BubbleElement(new SelectableElement(new RowElement(new HudElement[]
+        HudElement text = new CellElement(new ColumnElement(new HudElement[]
         {
-            lead,
-            DhThumb(i),
-            new SpacerElement(DhRowGapX, 0f),
-            new CellElement(new ColumnElement(new HudElement[]
-            {
-                name,
-                new TextElement(() => DhAt(i) is { } e ? DhRowSub(e) : "", Color: () => MutedColor(),   // muted even at 0 (info only)
-                    NoWrap: true, FontSize: DhFsSub) { RichEmoji = true, Ellipsize = true },
-            }, Gap: DcS(2f)), Width: DhRowTextW),
-            new SpacerElement(DhRowGapX, 0f),
-        }, Gap: 0.01f), OnClick: () => DhSelectEntry(i)) { Bare = true })
+            name,
+            new TextElement(() => DhAt(i) is { } e ? DhRowSub(e) : "", Color: () => MutedColor(),   // muted even at 0 (info only)
+                NoWrap: true, FontSize: DhFsSub) { RichEmoji = true, Ellipsize = true },
+        }, Gap: DcS(2f)), Width: textW);
+        var parts = npc
+            ? new HudElement[] { lead, DhThumb(i), new SpacerElement(DhRowGapX, 0f), text, DhNpcRowStar(i), new SpacerElement(DhRowGapX, 0f) }
+            : new HudElement[] { lead, DhThumb(i), new SpacerElement(DhRowGapX, 0f), text, new SpacerElement(DhRowGapX, 0f) };
+        return new BubbleElement(new SelectableElement(new RowElement(parts, Gap: 0.01f), OnClick: () => DhSelectEntry(i)) { Bare = true })
         {
             FillColorFn = () => Fade(DhAt(i) is not { } e ? DcTile()
                 : e.Key == DhCur?.Key ? Over(Menu.MenuAccent with { A = 0.14f }, DcTile())

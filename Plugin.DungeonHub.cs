@@ -50,6 +50,7 @@ public sealed partial class Plugin
             _cfg.Save();
         }
         _dhTab = Math.Clamp(_cfg.Get<int>("dungeon_hub_tab", 0), 0, DhTabCount - 1);
+        DhNpcLoadPins();         // pinned NPCs, in pin order (.NpcPins.cs)
         DhBuildLiveText();       // the header / bar texts before the first poll ("Solo", "Not in a party")
         _dhWin = DhRegister();   // Plugin.DungeonHub.Window.cs
         // Registered UNBOUND (null default key) — rebindable in the hotkey settings, the user assigns the key.

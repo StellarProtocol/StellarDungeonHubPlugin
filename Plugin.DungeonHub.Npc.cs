@@ -353,13 +353,7 @@ public sealed partial class Plugin
         }
         return DhPanelNoCaption(
             DhArtBand(),
-            DhNameRow(),
-            new RowElement(new HudElement[]
-            {
-                new SpacerElement(0f, DhActSubH),
-                new CellElement(new TextElement(() => DhCur?.Sub ?? "", Color: () => MutedColor(), NoWrap: true, FontSize: DhFsSub)
-                    { Ellipsize = true }, Weight: 1f),
-            }, Gap: 0.01f),
+            DhNpcHead(),   // name · title + the Pin pill (.NpcPins.cs); same height as the old name + title rows
             DhCaption(() => L("dh.cap.services")),
             new RowElement(new HudElement[]
             {
