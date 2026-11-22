@@ -183,6 +183,7 @@
   "dh.sub.notInParty": "not in a party",
   "dh.sub.notOffered": "not offered",
   "dh.sub.notOnLevel": "not on this level",
+  "dh.sub.notThisSeason": "not available this season",
   "dh.sub.notUnlocked": "not unlocked yet",
   "dh.sub.onYourOwn": "on your own",
   "dh.sub.startsIn": "starts in {0}",
@@ -230,6 +231,7 @@
   "dh.word.cleared": "Cleared",
   "dh.word.firstClear": "First clear",
   "dh.word.locked": "Locked",
+  "dh.word.notThisSeason": "Not this season",
   "dh.word.rewardReady": "Reward ready",
   "dh.word.rewardsLeft": "Rewards left"
 }

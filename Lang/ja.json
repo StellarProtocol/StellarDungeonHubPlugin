@@ -183,6 +183,7 @@
   "dh.sub.notInParty": "パーティー未参加",
   "dh.sub.notOffered": "対象外",
   "dh.sub.notOnLevel": "この難易度は不可",
+  "dh.sub.notThisSeason": "今シーズンは利用不可",
   "dh.sub.notUnlocked": "未解放",
   "dh.sub.onYourOwn": "1人で",
   "dh.sub.startsIn": "あと{0}で開始",
@@ -230,6 +231,7 @@
   "dh.word.cleared": "クリア済み",
   "dh.word.firstClear": "初回クリア",
   "dh.word.locked": "未解放",
+  "dh.word.notThisSeason": "今シーズンなし",
   "dh.word.rewardReady": "受取可能",
   "dh.word.rewardsLeft": "残り報酬"
 }

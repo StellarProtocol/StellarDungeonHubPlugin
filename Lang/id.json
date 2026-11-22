@@ -183,6 +183,7 @@
   "dh.sub.notInParty": "tidak dalam party",
   "dh.sub.notOffered": "tidak tersedia",
   "dh.sub.notOnLevel": "tidak di tingkat ini",
+  "dh.sub.notThisSeason": "tidak tersedia musim ini",
   "dh.sub.notUnlocked": "belum terbuka",
   "dh.sub.onYourOwn": "sendirian",
   "dh.sub.startsIn": "mulai dalam {0}",
@@ -230,6 +231,7 @@
   "dh.word.cleared": "Selesai",
   "dh.word.firstClear": "Clear pertama",
   "dh.word.locked": "Terkunci",
+  "dh.word.notThisSeason": "Tidak ada musim ini",
   "dh.word.rewardReady": "Siap diklaim",
   "dh.word.rewardsLeft": "Sisa hadiah"
 }

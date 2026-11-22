@@ -29,7 +29,7 @@ public sealed partial class Plugin
         {
             if (!e.CanMatch) return new(false, false, label, L("dh.sub.notOffered"));
             if (live.Matching && DhMatchingThis()) return new(false, true, L("dh.mode.matching"), DhClock());
-            if (e.Locked) return new(false, false, label, L("dh.sub.locked"));
+            if (e.Locked) return new(false, false, label, L(e.OffSeason ? "dh.sub.notThisSeason" : "dh.sub.locked"));
             // World Boss: only inside its event window (timer 220), never "Open" just because the function is on
             if (DhIsWb(e) && _dhWb is { Open: false }) return new(false, false, label, DhWbClosedSub());
             if (live.Matching) return new(!member, false, label, member ? L("dh.sub.leaderOnly") : L("dh.sub.changeMatch"));
@@ -298,7 +298,7 @@ public sealed partial class Plugin
             DhTile(() => DhCur?.CounterKey is { Length: > 0 } k ? k : L("dh.word.rewardsLeft"),
                    () => DhCur?.TileVal is { Length: > 0 } v ? v : "—",
                    () => DhCur is { CounterZero: true } ? MutedColor() : TextColor(), DhHalfW),
-            DhTile(() => L("dh.tile.status"), () => L(DhCur is { Locked: true } ? "dh.word.locked" : "dh.st.open"),
+            DhTile(() => L("dh.tile.status"), () => L(DhCur is { OffSeason: true } ? "dh.word.notThisSeason" : DhCur is { Locked: true } ? "dh.word.locked" : "dh.st.open"),
                    () => DhCur is { Locked: true } ? MutedColor() : DhGreen, DhHalfW),
         }, Gap: DhPanGap)),
         new SpacerElement(0f, DhActFiller),
@@ -309,7 +309,7 @@ public sealed partial class Plugin
                 new BubbleElement(new SelectableElement(DhStaticContent(() => L("dh.act.open"), () => L("dh.act.page"),
                         () => EnsureContrast(TextColor(), DcNeutral(), 4.5f), DhHalfW), OnClick: DhOnActivityOpen) { Bare = true })
                     { FillColorFn = () => Fade(DcNeutral()), CornerRadius = DhBtnRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DhHalfW },
-                new BubbleElement(DhStaticContent(() => L("dh.act.open"), () => L("dh.sub.locked"), () => Mix(PanelColor(), TextColor(), 0.4f), DhHalfW))
+                new BubbleElement(DhStaticContent(() => L("dh.act.open"), () => L(DhCur is { OffSeason: true } ? "dh.sub.notThisSeason" : "dh.sub.locked"), () => Mix(PanelColor(), TextColor(), 0.4f), DhHalfW))
                     { FillColorFn = () => Fade(Mix(PanelColor(), DcNeutral(), 0.55f)), CornerRadius = DhBtnRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DhHalfW }),
                 Width: DhHalfW),
             // Match only where the game has an activity match (World Boss); otherwise the slot stays empty.
