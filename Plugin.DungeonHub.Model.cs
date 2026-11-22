@@ -53,6 +53,7 @@ public sealed partial class Plugin
         public string SubText = "", TileVal = "";   // activities: the list sub-line / tile value (DhCounterText)
         public string Title = "";                   // detail title when it differs from the list name (Unstable: full name)
         public bool Locked, CounterZero, CanMatch, Unstable;
+        public bool OffSeason;                      // Locked because this season has no content (not the function lock)
         public bool MasterOn;                       // the Master dungeon is unlocked (function on + IsUnlockDungeonId)
         public string? HighSub;                     // DhRowSub's cache (entries are rebuilt on every catalog parse)
         public readonly DhLevel?[] Levels = new DhLevel?[DhChipCount];   // hero: Unstable, Normal, Hard (3 = Master, polled
@@ -110,6 +111,7 @@ public sealed partial class Plugin
                         MasterMax = DcInt(f[12]), MasterArt = f[13], FuncId = DcInt(f[14]), CounterKey = DhWord(f[15]),
                         CounterVal = f[16], CounterZero = f[17] == "1", CanMatch = f[18] == "1", MatchActId = DcInt(f[19]),
                     };
+                    e.OffSeason = e.Locked && f[7] == DhOffSeasonWord;
                     if (f.Length > 20) e.Unstable = f[20] == "1";
                     if (f.Length > 21) e.Title = f[21];
                     if (f.Length > 22) e.MasterOn = f[22] == "1";
@@ -285,7 +287,7 @@ public sealed partial class Plugin
     private string DhRowSub(DhEntry e)
     {
         if (e.IsNpc) return e.SubText;   // the NPC title alone (set at parse)
-        if (e.Locked) return L("dh.word.locked");
+        if (e.Locked) return L(e.OffSeason ? "dh.word.notThisSeason" : "dh.word.locked");
         if (e.IsActivity) return DhIsWb(e) ? DhWbRowSub(e) : DhIsGh(e) ? DhGhRowSub(e) : DhIsCm(e) ? DhCmRowSub(e) : e.SubText;
         if (e.Tab == DhTabHero && !e.Unstable)
         {

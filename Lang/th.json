@@ -183,6 +183,7 @@
   "dh.sub.notInParty": "ไม่ได้อยู่ในปาร์ตี้",
   "dh.sub.notOffered": "ไม่มีให้",
   "dh.sub.notOnLevel": "ไม่มีในระดับนี้",
+  "dh.sub.notThisSeason": "ไม่เปิดในซีซันนี้",
   "dh.sub.notUnlocked": "ยังไม่ปลดล็อก",
   "dh.sub.onYourOwn": "คนเดียว",
   "dh.sub.startsIn": "เริ่มในอีก {0}",
@@ -230,6 +231,7 @@
   "dh.word.cleared": "เคลียร์แล้ว",
   "dh.word.firstClear": "เคลียร์ครั้งแรก",
   "dh.word.locked": "ล็อก",
+  "dh.word.notThisSeason": "ไม่มีในซีซันนี้",
   "dh.word.rewardReady": "รับรางวัลได้",
   "dh.word.rewardsLeft": "รางวัลคงเหลือ"
 }

@@ -183,6 +183,7 @@
   "dh.sub.notInParty": "wala sa party",
   "dh.sub.notOffered": "hindi available",
   "dh.sub.notOnLevel": "wala sa level na ito",
+  "dh.sub.notThisSeason": "hindi available ngayong season",
   "dh.sub.notUnlocked": "hindi pa bukas",
   "dh.sub.onYourOwn": "mag-isa",
   "dh.sub.startsIn": "magsisimula sa {0}",
@@ -230,6 +231,7 @@
   "dh.word.cleared": "Natapos na",
   "dh.word.firstClear": "Unang clear",
   "dh.word.locked": "Naka-lock",
+  "dh.word.notThisSeason": "Wala ngayong season",
   "dh.word.rewardReady": "Handang kunin",
   "dh.word.rewardsLeft": "Premyo"
 }

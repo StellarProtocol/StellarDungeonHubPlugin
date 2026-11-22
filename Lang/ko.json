@@ -183,6 +183,7 @@
   "dh.sub.notInParty": "파티 없음",
   "dh.sub.notOffered": "지원 안 함",
   "dh.sub.notOnLevel": "이 난이도 불가",
+  "dh.sub.notThisSeason": "이번 시즌 이용 불가",
   "dh.sub.notUnlocked": "아직 미해금",
   "dh.sub.onYourOwn": "혼자서",
   "dh.sub.startsIn": "{0} 후 시작",
@@ -230,6 +231,7 @@
   "dh.word.cleared": "클리어 완료",
   "dh.word.firstClear": "최초 클리어",
   "dh.word.locked": "잠김",
+  "dh.word.notThisSeason": "이번 시즌 없음",
   "dh.word.rewardReady": "수령 가능",
   "dh.word.rewardsLeft": "남은 보상"
 }

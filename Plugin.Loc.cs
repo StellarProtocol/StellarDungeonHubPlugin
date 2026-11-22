@@ -33,7 +33,12 @@ public sealed partial class Plugin
         ["Nightmare"] = "dh.diff.nightmare", ["Unstable"] = "dh.diff.unstable",
         ["Locked"] = "dh.word.locked", ["Rewards left"] = "dh.word.rewardsLeft", ["First clear"] = "dh.word.firstClear",
         ["Reward ready"] = "dh.word.rewardReady", ["Claimed"] = "dh.word.claimed", ["Cleared"] = "dh.word.cleared",
+        [DhOffSeasonWord] = "dh.word.notThisSeason",
     };
+
+    // The sub word of a Locked activity that is unlocked but has no content this season (Slumberdream Valley, the
+    // catalog's act()); the parse flags it as DhEntry.OffSeason so the row / tile / Open button say why.
+    private const string DhOffSeasonWord = "Not this season";
 
     private string DhWord(string? s) => s == null ? "" : DhWordKeys.TryGetValue(s, out var k) ? _loc.T(k) : s;
 

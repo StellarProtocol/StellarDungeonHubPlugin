@@ -245,8 +245,20 @@ public sealed partial class Plugin
         if rem >= 0 then ck = 'Rewards left' cv = tostring(rem) .. ' / ' .. tostring(lim) cz = b(rem == 0 and lim > 0) end
         if cfg and cfg.Id then cm = 1 aid = cfg.Id end
       end
-      local sub = not on and 'Locked' or ''
-      rec('E', tab, 'a' .. fid, name, art or '', '', b(not on), sub, 0, 0, 0, 0, 0, '', fid, ck, cv, cz, cm, aid)
+      -- Slumberdream Valley (RogueMain) only has content in a season with RogueTable rows (rouge_data
+      -- InitSeasonDungeonData keeps Season == current; season 4 has none; FunctionTable.TimerId 40301 only gates the
+      -- start). Unlocked but no rows = closed: dimmed + Open off like Locked, sub 'Not this season' (C# maps the word,
+      -- Plugin.Loc.cs). Locked wins. RogueMain only: other activities can run without a season row (World Boss, S4).
+      -- A failed scan counts as in season (never close on an error).
+      local off = false
+      if on and fid == E.FunctionID.RogueMain then
+        off = not try(function()
+          for _, r in pairs(TM.GetTable('RogueTableMgr').GetDatas()) do if r.Season == sid then return true end end
+          return false
+        end, true)
+      end
+      local sub = not on and 'Locked' or off and 'Not this season' or ''
+      rec('E', tab, 'a' .. fid, name, art or '', '', b(not on or off), sub, 0, 0, 0, 0, 0, '', fid, ck, cv, cz, cm, aid)
     end
     -- Boss & Hunt (tab 2, 2026-11-20: the old World Boss + Hunt tabs merged), World Boss first
     act(2, E.FunctionID.WorldBoss)
