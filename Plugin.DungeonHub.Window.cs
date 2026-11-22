@@ -83,7 +83,7 @@ public sealed partial class Plugin
     private static readonly ColorRgba DhSoloFill = Rgb(0x7aa2ff), DhSoloInk = Rgb(0x101c3a);     // v5 Solo button
     private static readonly ColorRgba DhPartyFill = Rgb(0xff8f7a), DhPartyInk = Rgb(0x3a140c);   // v5 Party button
     // Row pool of the list (any tab; the viewport scrolls past ~7 rows). v5: up to 6 Unstable entries ride on top of the
-    // dungeons (16 was enough); the NPC tab lists 18 NPCs (2026-11-21), +2 spare so one more NPC needs no change here.
+    // dungeons (16 was enough); the NPC tab lists 20 NPCs (2026-11-21, Meowflyn) = EVERY slot — the next NPC needs this raised.
     private const int DhListSlots = 20;
 
     // Top-align inside a row (WindowBuilder-Patterns.md "Top-align inside a row", ✅ in-game): an always-true Fill

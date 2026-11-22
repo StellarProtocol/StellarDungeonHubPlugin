@@ -123,6 +123,9 @@ public sealed partial class Plugin
         -- Guild Center (scene 12000, no scenic photo): the guild building's own art; services locked without a guild
         { 1200004,  e = 'ui/atlas/map/union_talk_06', f = TAB .. '83',
           bg = 'ui/textures/union_2/union_device03' },                              -- Kien, Grocery Store (type '21')
+        -- Starland (scene 11): its West Beach 'Sea Breeze Secret' scenic-spot postcard (MapStickerTable 110015)
+        { 1011500,  e = 'ui/atlas/map/union_talk_37', f = 'ui/atlas/buff/buff_hideseek_icon02',
+          bg = 'ui/textures/scenicspot/pic_scenicspotreputation_notepostcard_jizhuangxiangduomaomao' },   -- Meowflyn 'Tag Ambassador' (Starland, scene 11): Wondrous Tag
       }
       local npcs = st.npcs
       if not npcs then
