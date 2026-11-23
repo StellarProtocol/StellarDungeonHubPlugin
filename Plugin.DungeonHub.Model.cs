@@ -56,6 +56,7 @@ public sealed partial class Plugin
         public bool OffSeason;                      // Locked because this season has no content (not the function lock)
         public bool MasterOn;                       // the Master dungeon is unlocked (function on + IsUnlockDungeonId)
         public string? HighSub;                     // DhRowSub's cache (entries are rebuilt on every catalog parse)
+        public DhCrop? ThumbCrop;                   // the list thumb's crop, shared per Key across parses (.ArtCache.cs)
         public readonly DhLevel?[] Levels = new DhLevel?[DhChipCount];   // hero: Unstable, Normal, Hard (3 = Master, polled
                                                                           // as M rows); raid: Easy, Hard, Nightmare
         public bool IsActivity => Tab > DhTabRaid && Tab <= DhTabOther;   // Boss & Hunt + Other, never the NPC tab
@@ -356,6 +357,7 @@ public sealed partial class Plugin
         _cfg.Save();
         _dhLevelFor = "";
         DhFixSelection();
+        _dhListReset = true;   // another list: back to the top (.ListVirtual.cs)
         if (tab == DhTabWb) DhWbFetch();   // this week's boss (also needed before matching)
     }
 

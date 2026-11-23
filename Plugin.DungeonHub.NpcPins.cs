@@ -18,7 +18,7 @@ namespace Stellar.DungeonHub;
 //            game title), trimmed. NOT service names (user 2026-11-21: name + description only).
 //   select   a selected NPC the search filters out → the first match (DhFixSelection after each rebuild). No match →
 //            the detail keeps the last NPC (.Model.cs DhCur falls back to the full list) and the list shows one
-//            recessed "No NPC matches" row (slot 0, .Window.cs DhListSlot).
+//            recessed "No NPC matches" row (pool slot 0, .Window.cs DhListSlotRow).
 //   persist  config "dungeon_hub_npc_pins" = npcIds comma-joined, in pin order. An id no longer listed is ignored (kept
 //            in the config: a briefly partial catalog must not drop pins).
 //
@@ -76,6 +76,7 @@ public sealed partial class Plugin
         else { _dhPinSet.Add(e.Key); _dhPins.Add(e.Key); }
         DhNpcSavePins();
         DhNpcRebuildView();
+        _dhListReset = true;   // regrouped (PINNED / ALL): back to the top (.ListVirtual.cs)
     }
 
     private void DhSetNpcQuery(string s)
@@ -87,6 +88,7 @@ public sealed partial class Plugin
         if (trim == _dhNpcQueryTrim) return;   // only spaces changed: same matches
         _dhNpcQueryTrim = trim;
         DhNpcRebuildView();
+        _dhListReset = true;   // new matches: back to the top (.ListVirtual.cs)
     }
 
     private bool DhNpcMatches(DhEntry e) => !DhNpcSearching ||
@@ -110,12 +112,12 @@ public sealed partial class Plugin
     }
 
     // "PINNED" over the first pinned row, "ALL" over the first other row — only when something is pinned and the
-    // search is empty (.Window.cs DhGroupHeader).
-    private string DhNpcGroupHeader(int i)
+    // search is empty (.Window.cs DhGroupKind / DhGroupHeader; i = DATA index).
+    private int DhNpcGroupKind(int i)
     {
-        if (DhNpcSearching || _dhNpcPinnedShown == 0 || i >= _dhNpcView.Count) return "";
-        if (i == 0) return L("dh.npc.pinnedCap");
-        return i == _dhNpcPinnedShown ? L("dh.npc.all") : "";
+        if (DhNpcSearching || _dhNpcPinnedShown == 0 || i >= _dhNpcView.Count) return DhGrpNone;
+        if (i == 0) return DhGrpPinned;
+        return i == _dhNpcPinnedShown ? DhGrpAll : DhGrpNone;
     }
 
     // ── search row (replaces the list caption on the NPC tab; same 28 px strut) ──────────────────────────────────────
@@ -167,10 +169,10 @@ public sealed partial class Plugin
 
     // The ★ slot at a list row's right edge: constant width on every NPC row, the star tinted transparent when the row
     // isn't pinned (house: per-row status icon = fixed cell + Tint, never a Conditional → no row jump).
-    private HudElement DhNpcRowStar(int i) => new CellElement(new RowElement(new HudElement[]
+    private HudElement DhNpcRowStar(Func<int> i) => new CellElement(new RowElement(new HudElement[]
         {
             new ImageElement(DhStarFillPng, (int)DhStarRowW, (int)DhStarRowW)
-                { Tint = () => DhIsPinned(DhAt(i)) ? DhGold : Transparent },
+                { Tint = () => DhIsPinned(DhAt(i())) ? DhGold : Transparent },
         }, Gap: 0.01f, Justify: RowJustify.Center), Width: DhStarSlotW);
 
     // ── detail head: name over sub-line, Pin / Pinned pill on the right ──────────────────────────────────────────────

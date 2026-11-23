@@ -81,7 +81,8 @@ public sealed partial class Plugin
     }
 
     // Logout runs synchronously (Update is world-gated): hide now and forget the open in flight.
-    private void OnDhLogout() { DhHide(); _dhOpening = false; _dhHaveCatalog = false; DhWarmRearm(); }
+    // Composed art is kept across hide / show and released here: the next character has its own catalog (.ArtCache.cs).
+    private void OnDhLogout() { DhHide(); _dhOpening = false; _dhHaveCatalog = false; DhReleaseArt(); DhWarmRearm(); }
 
     // Every open lands centred and in front. Fronting on EVERY open is the house OpenCentred rule: ZFront is sticky
     // (WindowBuilder-Patterns.md), and this plugin already fronts the Dungeon Confirm windows on each show.
@@ -106,7 +107,6 @@ public sealed partial class Plugin
         _dhWin.SetVisible(false);
         DhSyncMouse();   // every hide ends here: ✕/Esc (OnClose), hotkey, close-on-action, logout (.Mouse.cs)
         DhStopCentring();
-        DhReleaseArt();   // no composed raid art kept while hidden (.Art.cs)
     }
 
     // ── tick: poll only while the window is up, or while a page open is still being followed ──────────────────────
