@@ -360,7 +360,7 @@ public sealed partial class Plugin
     // invisible spacer when empty), so buttons never move.
     private HudElement DcFooter(Func<string> message) => new RowElement(new HudElement[]
     {
-        new CellElement(new TextElement(message, Color: () => MutedColor(), NoWrap: true, FontSize: DcFsSmall)
+        new CellElement(new TextElement(() => DcFooterMessage(message), Color: () => MutedColor(), NoWrap: true, FontSize: DcFsSmall)
             { RichEmoji = true, Ellipsize = true }, Weight: 1f),
         DcLeftSlot(),
         DcRightSlot(),
@@ -368,15 +368,18 @@ public sealed partial class Plugin
 
     private HudElement DcBlankSlot() => new SpacerElement(DcPillW, DcPillH);
 
-    // Left: Decline (member / match) · "Decline?" armed (match) · disabled "Declined" (match, sent) · blank (leader, end).
-    // Decline is Danger red like the leader's Cancel Entry (user, 2026-11-06); the sent "Declined" stays the grey off pill.
-    private HudElement DcLeftSlot() => new ConditionalElement(() => _dc == null || _dcEnd != DcEnd.None || (!_dc.Match && _dc.IAmLeader),
+    // Left: Decline (member / match) · "Decline?" armed (match) · disabled "Declined" (match, sent) · Kidnap (team
+    // leader, .Kidnap.cs) · blank (end). Decline is Danger red like the leader's Cancel Entry (user, 2026-11-06); the
+    // sent "Declined" stays the grey off pill.
+    private HudElement DcLeftSlot() => new ConditionalElement(() => _dc == null || _dcEnd != DcEnd.None,
         DcBlankSlot(),
-        new ConditionalElement(() => _dcMatchDeclined,
-            DcPillOff(() => L("dc.btn.declined"), DcNeutral),
-            new ConditionalElement(() => DcNow <= _dcArmUntil,
-                DcDanger(() => L("dc.btn.declineArm"), DcOnDecline),
-                DcDanger(() => L("dc.btn.decline"), DcOnDecline))));
+        new ConditionalElement(() => !_dc!.Match && _dc.IAmLeader,
+            DcKidnapSlot(),
+            new ConditionalElement(() => _dcMatchDeclined,
+                DcPillOff(() => L("dc.btn.declined"), DcNeutral),
+                new ConditionalElement(() => DcNow <= _dcArmUntil,
+                    DcDanger(() => L("dc.btn.declineArm"), DcOnDecline),
+                    DcDanger(() => L("dc.btn.decline"), DcOnDecline)))));
 
     // Right: Close (end) · Cancel Entry / disabled once "doing" (leader) · Confirm / green "Confirmed ✓" (Art.cs).
     private HudElement DcRightSlot() => new ConditionalElement(() => _dc == null || _dcEnd != DcEnd.None,
