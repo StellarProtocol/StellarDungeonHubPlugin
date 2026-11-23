@@ -320,8 +320,8 @@ public sealed partial class Plugin
                 NoWrap: true, FontSize: DhFsSub) { RichEmoji = true, Ellipsize = true },
         }, Gap: DcS(2f)), Width: textW);
         var parts = npc
-            ? new HudElement[] { lead, DhThumb(i), new SpacerElement(DhRowGapX, 0f), text, DhNpcRowStar(i), new SpacerElement(DhRowGapX, 0f) }
-            : new HudElement[] { lead, DhThumb(i), new SpacerElement(DhRowGapX, 0f), text, new SpacerElement(DhRowGapX, 0f) };
+            ? new HudElement[] { lead, DhThumb(() => i), new SpacerElement(DhRowGapX, 0f), text, DhNpcRowStar(i), new SpacerElement(DhRowGapX, 0f) }
+            : new HudElement[] { lead, DhThumb(() => i), new SpacerElement(DhRowGapX, 0f), text, new SpacerElement(DhRowGapX, 0f) };
         return new BubbleElement(new SelectableElement(new RowElement(parts, Gap: 0.01f), OnClick: () => DhSelectEntry(i)) { Bare = true })
         {
             FillColorFn = () => Fade(DhAt(i) is not { } e ? DcTile()

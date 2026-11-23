@@ -13,7 +13,7 @@ namespace Stellar.DungeonHub;
 //     to IGameAssets.LoadByPath (its own slot cache; cheap). Paths stay "asked" for the session — the framework keeps
 //     the loaded textures anyway.
 //   • DhComposeAllowed: at most DhComposePerFrame raid composes per frame.
-// The warm-up (.Prewarm.cs) asks the saved tab's thumbs ahead of the first open through the same gate.
+// The warm-up (.Prewarm.cs) loads + composes every tab's thumbs ahead of the first open through the same gates.
 public sealed partial class Plugin
 {
     private const int DhArtLoadsPerFrame = 3, DhComposePerFrame = 1;

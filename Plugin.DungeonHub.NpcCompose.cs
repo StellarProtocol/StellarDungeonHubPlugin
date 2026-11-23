@@ -20,8 +20,8 @@ namespace Stellar.DungeonHub;
 //   4. alpha-blend that over the target with the raid compose's Sprites/Default material (premultiplied blend keeps the
 //      target's alpha at 1, see .ArtCompose.cs step 3).
 // The darkening is a full-rect blend of a 1×1 black texture at DhNpcBgDim alpha.
-// One ReadPixels (a CPU↔GPU sync) per overlay, once per hub open — like the raid compose's opaque-band readback.
-// Lifetime: composed RTs live in _dhComp (released on every hide, .Art.cs DhReleaseArt, recomposed on the next open);
+// One ReadPixels (a CPU↔GPU sync) per overlay, once per login (RTs are kept) — like the raid compose's opaque-band readback.
+// Lifetime: composed RTs live in _dhComp, kept across hide / show and released on logout / Dispose (.ArtCache.cs DhReleaseArt);
 // the gradient tiles and the dim texture are generated once per session and destroyed in DhDisposeNpcArt.
 public sealed partial class Plugin
 {
@@ -50,7 +50,7 @@ public sealed partial class Plugin
 
     private static int DhGradIndex(int npcId) => (int)((uint)npcId % (uint)DhGradPal.Length);
 
-    // ── composed RT cache (shares _dhComp with the raid pairs, so DhReleaseArt frees it on hide) ─────────────────────
+    // ── composed RT cache (_dhComp; DhReleaseArt frees it on logout / Dispose) ──────────────────────────────────────────
     private UE.RenderTexture? DhNpcComposed(string key, out bool failed)
     {
         failed = false;

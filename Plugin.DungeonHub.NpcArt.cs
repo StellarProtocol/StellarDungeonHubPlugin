@@ -7,7 +7,7 @@ namespace Stellar.DungeonHub;
 // exists (Dungeon-Access-Hub.md §13 "NPC art"), so each NPC carries game paths on its N record (.Npc.cs ART / MapIcon):
 //   • banner (detail art band) = a SCENERY backdrop (Mael: the Lallipar village panorama, a MapStickerTable scenic-spot
 //     photo) cropped to the band, darkened, with the NPC's emblem (Mael: the Matrix page art, then the season emblem)
-//     drawn WHOLE on top — one RenderTexture composed once per open (.NpcCompose.cs), for the SELECTED NPC only (the
+//     drawn WHOLE on top — one RenderTexture composed once per login (.NpcCompose.cs), for the SELECTED NPC only (the
 //     band shows DhCur). A WIDE emblem (an opaque picture, not an icon) skips the backdrop and is the banner itself,
 //     cropped like every other entry (2026-11-21). No backdrop, or it did not load:
 //     the emblem alone as before — a WIDE image (pixel aspect ≥ DhNpcFitBelow) fills the band like every other entry
@@ -97,30 +97,30 @@ public sealed partial class Plugin
     private static string[] DhPaths(string a, string b) =>
         a.Length > 0 && b.Length > 0 && a != b ? new[] { a, b } : a.Length > 0 ? new[] { a } : b.Length > 0 ? new[] { b } : System.Array.Empty<string>();
 
-    // Band: scenery + emblem composite, else the emblem alone with its display uv. cropKey is cleared so the next
+    // Band: scenery + emblem composite, else the emblem alone with its display uv. The crop is marked unset so the next
     // non-NPC entry recomputes its crop.
-    private object? DhNpcBandTex(DhEntry e, ref string cropKey, ref UvRect cropUv)
+    private object? DhNpcBandTex(DhEntry e, DhCrop crop)
     {
         var a = DhNpcArtOf(e);
-        cropKey = "";
+        crop.Set = false;
         float box = DhDetInW / DhArtH;
         var emb = DhPickTex(e, a, a.Banner, box);
         // A WIDE emblem (pixel aspect ≥ DhNpcFitBelow) IS the banner: the feature_preview / sevendaystarget /
         // collection_profession pictures are opaque scenes, not cut-out icons, so a backdrop under them would never
         // show — cropped to the band like every other entry instead (user rule 2026-11-21).
-        if (DhNpcWideEmblem(a)) { if (emb != null) cropUv = a.Banner.Uv; return emb; }
+        if (DhNpcWideEmblem(a)) { if (emb != null) crop.Uv = a.Banner.Uv; return emb; }
         var p = a.Backdrop;
         if (p.Paths.Length > 0 && !(p.Settled && !p.Done))   // a backdrop that has not failed
         {
             var bg = DhPickTex(e, a, p, box);
             if (bg == null || !a.Banner.Settled) return null;   // still loading (≤ DhNpcArtWaitSec): the empty tile
-            if (emb == null) { cropUv = p.Uv; return bg; }      // no emblem: the scenery alone
+            if (emb == null) { crop.Uv = p.Uv; return bg; }      // no emblem: the scenery alone
             a.BandKey ??= "npcb|" + p.Paths[p.At] + "|" + a.Banner.Paths[a.Banner.At];
             var rt = DhNpcComposed(a.BandKey, out bool failed);
             if (rt == null && !failed)
             {
-                // Same rules as the raid pairs (.Art.cs DhRaidTex): one compose per frame, never while hidden.
-                if (!_dhShow || !DhComposeAllowed()) return null;
+                // Same rules as the raid pairs (.Art.cs DhRaidTex): one compose per frame, hidden or shown (kept until logout).
+                if (!DhComposeAllowed()) return null;
                 rt = DhNpcComposeBand(bg, p.Uv, emb, a.Banner.Raw, box, out float dw, out float dh);
                 DhNpcKeep(a.BandKey, rt);
                 if (rt != null && !a.BandLogged)
@@ -129,18 +129,18 @@ public sealed partial class Plugin
                     _services.Log.Info($"[DungeonHub] npc {e.Key} banner composed {rt.width}x{rt.height} (emblem drawn {dw:0}x{dh:0} px of {a.Banner.W}x{a.Banner.H})");
                 }
             }
-            if (rt != null) { cropUv = DhFullUv; return rt; }
+            if (rt != null) { crop.Uv = DhFullUv; return rt; }
             // compose failed → the emblem alone (below)
         }
-        if (emb != null) cropUv = a.Banner.Uv;
+        if (emb != null) crop.Uv = a.Banner.Uv;
         return emb;
     }
 
     // Thumb: the NPC's backdrop (else its gradient tile) with its map marker on it; the base alone without a marker.
-    private object? DhNpcThumbTex(DhEntry e, ref string cropKey, ref UvRect cropUv)
+    private object? DhNpcThumbTex(DhEntry e, DhCrop crop)
     {
         var a = DhNpcArtOf(e);
-        cropKey = "";
+        crop.Set = false;
         var icon = DhPickTex(e, a, a.Thumb, DhThumbW / DhThumbH);
         // Base (user 2026-11-21): the NPC's LOCATION backdrop — the banner's own scenery — centre-cropped to the thumb
         // and darkened like the banner; the gradient only when there is no backdrop or it failed. The backdrop pick is
@@ -155,14 +155,14 @@ public sealed partial class Plugin
             if (!a.ThumbBgCropped) { a.ThumbBgCropped = true; a.ThumbBgUv = DcCrop(bg, p.Raw, DhThumbW / DhThumbH, DhNpcBgFocus, DhNpcBgFocus); }
         }
         var grad = bg == null ? DhGradTex(a.Palette) : null;
-        if (bg == null && grad == null) { if (icon != null) cropUv = a.Thumb.Uv; return icon; }   // generating failed: the marker alone
+        if (bg == null && grad == null) { if (icon != null) crop.Uv = a.Thumb.Uv; return icon; }   // generating failed: the marker alone
         if (icon == null && !a.Thumb.Settled) return null;   // marker still loading: the empty tile
-        if (icon == null && grad != null) { cropUv = DhFullUv; return grad; }   // gradient, no marker / it failed
+        if (icon == null && grad != null) { crop.Uv = DhFullUv; return grad; }   // gradient, no marker / it failed
         a.ThumbKey ??= "npct|" + (bg != null ? "bg|" + p.Paths[p.At] : "g" + a.Palette) + "|" + (icon != null ? a.Thumb.Paths[a.Thumb.At] : "");
         var rt = DhNpcComposed(a.ThumbKey, out bool failed);
         if (rt == null && !failed)
         {
-            if (!_dhShow || !DhComposeAllowed()) return null;
+            if (!DhComposeAllowed()) return null;
             rt = bg != null ? DhNpcComposeThumb(bg, a.ThumbBgUv, true, icon, a.Thumb.Raw)
                             : DhNpcComposeThumb(grad!, DhFullUv, false, icon, a.Thumb.Raw);
             DhNpcKeep(a.ThumbKey, rt);
@@ -173,11 +173,11 @@ public sealed partial class Plugin
                     (bg != null ? $"backdrop {p.Paths[p.At]} {p.W}x{p.H}" : $"gradient {a.Palette} (no backdrop)"));
             }
         }
-        if (rt != null) { cropUv = DhFullUv; return rt; }
+        if (rt != null) { crop.Uv = DhFullUv; return rt; }
         // compose failed: the marker alone as before, else the plain base
-        if (icon != null) { cropUv = a.Thumb.Uv; return icon; }
-        if (grad != null) { cropUv = DhFullUv; return grad; }
-        cropUv = a.ThumbBgUv; return bg;
+        if (icon != null) { crop.Uv = a.Thumb.Uv; return icon; }
+        if (grad != null) { crop.Uv = DhFullUv; return grad; }
+        crop.Uv = a.ThumbBgUv; return bg;
     }
 
     private object? DhPickTex(DhEntry e, DhNpcArt a, DhArtPick p, float box)
