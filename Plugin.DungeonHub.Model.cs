@@ -357,6 +357,7 @@ public sealed partial class Plugin
         _cfg.Save();
         _dhLevelFor = "";
         DhFixSelection();
+        _dhListReset = true;   // another list: back to the top (.ListVirtual.cs)
         if (tab == DhTabWb) DhWbFetch();   // this week's boss (also needed before matching)
     }
 

@@ -24,13 +24,13 @@ public sealed partial class Plugin
     private static readonly float DhDetW = DcSE(700f) - 24f - DcSE(250f) - DcSE(8f);                        // 684
     private static readonly float DhPanPadX = DcSE(10f), DhPanPadY = DcS(8f), DhPanGap = DcS(6f);           // 16 · 13 · 10
     private static readonly float DhCapH = DcSE(18f), DhRadius = DcS(6f);                                   // 28 · 10
-    // List: rows 84 (thumb 102×68), pitch 84 + 8 + the ListElement's own 2 px = 94; the scroll viewport keeps a ~9 px
-    // lane for its bar on the right, so a row is 10 px narrower than the panel's inner width.
+    // List: rows 84 (thumb 102×68), pitch 84 + a 10 px gap = 94 (the virtual list adds no gap of its own: .ListVirtual.cs);
+    // the scroll viewport keeps a ~9 px lane for its bar on the right, so a row is 10 px narrower than the panel's inner width.
     private static readonly float DhRowW = DhListW - 2f * DhPanPadX - 10f, DhRowH = DcSE(52f);             // 358 · 84
     private static readonly float DhThumbW = DcSE(64f), DhThumbH = DcSE(42f);                               // 102 · 68
     private static readonly float DhRowLead = DcSE(4f), DhRowGapX = DcSE(8f);                              // 6 · 12
     private static readonly float DhRowTextW = DhRowW - DhRowLead - DhThumbW - 2f * DhRowGapX;             // 226
-    private static readonly float DhRowPitchPad = DcSE(6f) - 2f;                                            // 8
+    private static readonly float DhRowPitchPad = DcSE(6f);                                                 // 10
     // Detail: inner 652 × 744 = art 180 · name 34 · caption 28 · chips 44 · the difficulty block 306 · caption 28 ·
     // buttons 64 (+ 6 gaps of 10).
     private static readonly float DhDetInW = DhDetW - 2f * DhPanPadX;                                       // 652
@@ -82,9 +82,6 @@ public sealed partial class Plugin
     private static readonly ColorRgba DhRed = Rgb(0xff8a8b);
     private static readonly ColorRgba DhSoloFill = Rgb(0x7aa2ff), DhSoloInk = Rgb(0x101c3a);     // v5 Solo button
     private static readonly ColorRgba DhPartyFill = Rgb(0xff8f7a), DhPartyInk = Rgb(0x3a140c);   // v5 Party button
-    // Row pool of the list (any tab; the viewport scrolls past ~7 rows). v5: up to 6 Unstable entries ride on top of the
-    // dungeons (16 was enough); the NPC tab lists 20 NPCs (2026-11-21, Meowflyn) = EVERY slot — the next NPC needs this raised.
-    private const int DhListSlots = 20;
 
     // Top-align inside a row (WindowBuilder-Patterns.md "Top-align inside a row", ✅ in-game): an always-true Fill
     // Conditional takes the row's full height (flexibleHeight) and stretches its branch Column, whose own layout keeps
@@ -230,39 +227,46 @@ public sealed partial class Plugin
         DcSmall(() => hint?.Invoke() ?? "", MutedColor, DhFsSmall),
     }, Gap: 0.01f);
 
-    // ── list: a fixed pool of slots in a scroll viewport ──────────────────────────────────────────────────────────
+    // ── list: a recycled row pool in a virtual scroll viewport (.ListVirtual.cs) ─────────────────────────────────────
     // v5: captions carry no step numbers ("DUNGEON", not "1 · DUNGEON").
     private HudElement DhListPanel()
     {
-        var slots = new HudElement[DhListSlots];
-        for (int i = 0; i < DhListSlots; i++) slots[i] = DhListSlot(i);
         // The NPC tab swaps its caption for the search field (.NpcPins.cs) — both 28 px, so the viewport keeps its height.
         return new BubbleElement(new ColumnElement(new HudElement[]
         {
             new ConditionalElement(() => _dhTab == DhTabNpc, DhNpcSearchRow(),
                 DhCaption(() => L(DhTab == DhTabHero ? "dh.cap.dungeon" : DhTab == DhTabRaid ? "dh.cap.raid" : "dh.cap.activity"),
                     () => DhCur?.CapText ?? "")),
-            new ScrollElement(new ListElement(DhListCount, slots), DhScrollH) { FixedHeight = true },
+            DhVirtualList(),
         }, Gap: DhPanGap))
         {
             FillColorFn = () => Fade(PanelColor()), CornerRadius = DhRadius, PaddingX = DhPanPadX, PaddingY = DhPanPadY,
         };
     }
 
-    // Shown slots; a search with no match shows ONE (the "No NPC matches" row in slot 0).
-    private int DhListCount() => DhNpcNoMatch ? 1 : Math.Min(DhListSlots, DhList.Count);
+    // Shown rows; a search with no match shows ONE (the "No NPC matches" row, data index 0). No cap: the list is virtual.
+    private int DhListCount() => DhNpcNoMatch ? 1 : DhList.Count;
 
     private int DhTab => _dhTab;
 
     // Group headers (v5 mock .grp): "OPEN TODAY" above the first Unstable entry, "DUNGEONS" above the first regular one
-    // after them. No Unstable open today → no headers at all (nothing to tell apart). The ListElement has no header
-    // rows, so a header is an optional line at the top of the slot of the entry it introduces.
-    private string DhGroupHeader(int i)
+    // after them. No Unstable open today → no headers at all (nothing to tell apart). The list has no header rows, so a
+    // header is an optional line at the top of the row of the entry it introduces (i = DATA index).
+    private string DhGroupHeader(int i) => DhGroupKind(i) switch
     {
-        if (_dhTab == DhTabNpc) return DhNpcGroupHeader(i);   // "PINNED" / "ALL" (.NpcPins.cs)
-        if (_dhTab != DhTabHero || DhAt(i) is not { } e) return "";
-        if (e.Unstable) return i == 0 ? L("dh.grp.openToday") : "";
-        return i > 0 && DhAt(i - 1) is { Unstable: true } ? L("dh.grp.dungeons") : "";
+        DhGrpOpenToday => L("dh.grp.openToday"), DhGrpDungeons => L("dh.grp.dungeons"),
+        DhGrpPinned => L("dh.npc.pinnedCap"), DhGrpAll => L("dh.npc.all"), _ => "",
+    };
+
+    private const int DhGrpNone = 0, DhGrpOpenToday = 1, DhGrpDungeons = 2, DhGrpPinned = 3, DhGrpAll = 4;
+
+    // Which header (if any) sits on data row i — no string work, so the list's per-row RowRevision can read it cheaply.
+    private int DhGroupKind(int i)
+    {
+        if (_dhTab == DhTabNpc) return DhNpcGroupKind(i);   // "PINNED" / "ALL" (.NpcPins.cs)
+        if (_dhTab != DhTabHero || DhAt(i) is not { } e) return DhGrpNone;
+        if (e.Unstable) return i == 0 ? DhGrpOpenToday : DhGrpNone;
+        return i > 0 && DhAt(i - 1) is { Unstable: true } ? DhGrpDungeons : DhGrpNone;
     }
 
     private static readonly float DhGrpH = DcSE(14f), DhGrpPadX = DcS(2f);                                // 22 · 3
@@ -270,41 +274,48 @@ public sealed partial class Plugin
     private static readonly float DhTagW = DcSE(62f), DhTagH = DcSE(14f), DhTagGap = DcS(4f);              // 100 · 22 · 6
     private static readonly int DhFsTag = DcSi(10f);                                                        // 16
 
-    // One slot = [group header] · the row · 8 px (the slot stretches its child, Stellar-Design-Language R15). The row's
-    // two looks are two WHOLE bubbles swapped by a Conditional — never a Conditional inside a bubble's measured child
-    // (WindowBuilder-Patterns.md §BubbleElement).
-    private HudElement DhListSlot(int i) => new ColumnElement(new HudElement[]
+    // One pool slot k = [group header] · the row · 10 px, showing DATA row i() = _dhListFirst + k (.ListVirtual.cs). The
+    // slot is measured at its preferred height (VariableHeight), so the 10 px pad IS the gap: 84 + 10 = the old 94 pitch
+    // (84 + 8 pad + the ListElement's 2 px gap). The row's two looks are two WHOLE bubbles swapped by a Conditional —
+    // never a Conditional inside a bubble's measured child (WindowBuilder-Patterns.md §BubbleElement); the header and
+    // pad Conditionals sit in the plain slot Column, outside every bubble.
+    private HudElement DhListSlot(int k)
     {
-        new ConditionalElement(() => DhGroupHeader(i).Length > 0, new RowElement(new HudElement[]
+        Func<int> i = () => _dhListFirst + k;   // built once per slot; read per frame without allocating
+        return new ColumnElement(new HudElement[]
         {
-            new SpacerElement(DhGrpPadX, DhGrpH),
-            DcBold(() => DhGroupHeader(i), MutedColor, DhFsTiny),
-        }, Gap: 0.01f)),
-        DhListSlotRow(i),
-        // No trailing pad after the LAST visible slot: it is invisible but counts toward content height. Measured
-        // 2026-11-09 (1 Unstable + 6 dungeons): content 707.7 px vs the 706 px viewport (handle 704.3/706) -> the
-        // AutoHide scrollbar showed and the framework treated the list as scrollable (blocking window drag there).
-        new ConditionalElement(() => i < DhListCount() - 1, new SpacerElement(0f, DhRowPitchPad)),
-    }, Gap: 0.01f);
+            new ConditionalElement(() => DhGroupKind(i()) != DhGrpNone, new RowElement(new HudElement[]
+            {
+                new SpacerElement(DhGrpPadX, DhGrpH),
+                DcBold(() => DhGroupHeader(i()), MutedColor, DhFsTiny),
+            }, Gap: 0.01f)),
+            DhListSlotRow(k, i),
+            // No trailing pad after the LAST row: it is invisible but counts toward content height. Measured 2026-11-09
+            // (1 Unstable + 6 dungeons): content 707.7 px vs the 706 px viewport (handle 704.3/706) -> the AutoHide
+            // scrollbar showed and the framework treated the list as scrollable (blocking window drag there).
+            new ConditionalElement(() => i() < DhListCount() - 1, new SpacerElement(0f, DhRowPitchPad)),
+        }, Gap: 0.01f);
+    }
 
-    // The row look of a slot: NPC (★ slot, .NpcPins.cs) · Unstable · regular; slot 0 also carries the no-match row.
-    private HudElement DhListSlotRow(int i)
+    // The row look of a slot: NPC (★ slot, .NpcPins.cs) · Unstable · regular; slot 0 also carries the no-match row (a
+    // no-match list has ONE row, so the window starts at 0 and slot 0 shows it).
+    private HudElement DhListSlotRow(int k, Func<int> i)
     {
         HudElement row = new ConditionalElement(() => _dhTab == DhTabNpc, DhListRow(i, unstable: false, npc: true),
-            new ConditionalElement(() => DhAt(i) is { Unstable: true }, DhListRow(i, unstable: true), DhListRow(i, unstable: false)));
-        return i == 0 ? new ConditionalElement(() => DhNpcNoMatch, DhNpcEmptyRow(), row) : row;
+            new ConditionalElement(() => DhAt(i()) is { Unstable: true }, DhListRow(i, unstable: true), DhListRow(i, unstable: false)));
+        return k == 0 ? new ConditionalElement(() => DhNpcNoMatch, DhNpcEmptyRow(), row) : row;
     }
 
     // One 84 px Tile row: art thumb · bold name over a muted sub-line. Selected = accent outline + a stronger accent
     // tint; locked = faded tile + text. Unstable (v5 mock .it.u): a light-blue left edge + an "UNSTABLE" tag before the
-    // name.
+    // name. i = the slot's DATA index (.ListVirtual.cs), resolved on every read.
     // NPC (npc: true): the text column gives up a constant ★ slot at the right edge (.NpcPins.cs DhNpcRowStar), on
     // every NPC row, so pinning never moves a row's text.
-    private HudElement DhListRow(int i, bool unstable, bool npc = false)
+    private HudElement DhListRow(Func<int> i, bool unstable, bool npc = false)
     {
         float textW = npc ? DhRowTextW - DhStarSlotW : DhRowTextW;
         float nameW = unstable ? textW - DhTagW - DhTagGap : textW;
-        HudElement name = new TextElement(() => DhAt(i)?.Name ?? "", Color: () => DhAt(i) is { Locked: true } ? MutedColor() : TextColor(),
+        HudElement name = new TextElement(() => DhAt(i())?.Name ?? "", Color: () => DhAt(i()) is { Locked: true } ? MutedColor() : TextColor(),
             Width: nameW, NoWrap: true, FontSize: DhFsName) { Bold = true, Ellipsize = true };
         if (unstable) name = new RowElement(new HudElement[] { DhUnstableTag(), new SpacerElement(DhTagGap, 0f), new CellElement(name, Width: nameW) }, Gap: 0.01f);
         HudElement lead = !unstable ? new SpacerElement(DhRowLead, DhRowH) : new RowElement(new HudElement[]
@@ -316,18 +327,18 @@ public sealed partial class Plugin
         HudElement text = new CellElement(new ColumnElement(new HudElement[]
         {
             name,
-            new TextElement(() => DhAt(i) is { } e ? DhRowSub(e) : "", Color: () => MutedColor(),   // muted even at 0 (info only)
+            new TextElement(() => DhAt(i()) is { } e ? DhRowSub(e) : "", Color: () => MutedColor(),   // muted even at 0 (info only)
                 NoWrap: true, FontSize: DhFsSub) { RichEmoji = true, Ellipsize = true },
         }, Gap: DcS(2f)), Width: textW);
         var parts = npc
-            ? new HudElement[] { lead, DhThumb(() => i), new SpacerElement(DhRowGapX, 0f), text, DhNpcRowStar(i), new SpacerElement(DhRowGapX, 0f) }
-            : new HudElement[] { lead, DhThumb(() => i), new SpacerElement(DhRowGapX, 0f), text, new SpacerElement(DhRowGapX, 0f) };
-        return new BubbleElement(new SelectableElement(new RowElement(parts, Gap: 0.01f), OnClick: () => DhSelectEntry(i)) { Bare = true })
+            ? new HudElement[] { lead, DhThumb(i), new SpacerElement(DhRowGapX, 0f), text, DhNpcRowStar(i), new SpacerElement(DhRowGapX, 0f) }
+            : new HudElement[] { lead, DhThumb(i), new SpacerElement(DhRowGapX, 0f), text, new SpacerElement(DhRowGapX, 0f) };
+        return new BubbleElement(new SelectableElement(new RowElement(parts, Gap: 0.01f), OnClick: () => DhSelectEntry(i())) { Bare = true })
         {
-            FillColorFn = () => Fade(DhAt(i) is not { } e ? DcTile()
+            FillColorFn = () => Fade(DhAt(i()) is not { } e ? DcTile()
                 : e.Key == DhCur?.Key ? Over(Menu.MenuAccent with { A = 0.14f }, DcTile())
                 : e.Locked ? Mix(PanelColor(), DcTile(), 0.5f) : DcTile()),
-            OutlineColorFn = () => FadeRing(DhAt(i) is { } e && e.Key == DhCur?.Key ? Menu.MenuAccent : null),
+            OutlineColorFn = () => FadeRing(DhAt(i()) is { } e && e.Key == DhCur?.Key ? Menu.MenuAccent : null),
             CornerRadius = DhRadius, PaddingX = 0f, PaddingY = 0f, MaxWidth = DhRowW,
         };
     }
