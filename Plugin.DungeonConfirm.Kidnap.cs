@@ -35,7 +35,7 @@ public sealed partial class Plugin
         int n = _dc.Waiting;
         if (n <= 0) return;
         DcLuaKidnap(_dcSeq, n);
-        _dcKidnapMsg = LF("dc.s.kidnapSent", n);
+        _dcKidnapMsg = n == 1 ? L("dc.s.kidnapSent1") : LF("dc.s.kidnapSent", n);
         _dcKidnapUntil = DcNow + DcKidnapMsgSec;
         _dcKidnapSeq = _dcSeq;
         _services.Log.Info($"[DungeonConfirm] kidnap sent {n}");
